@@ -232,8 +232,8 @@ export default function LockingModal({ isOpen, onClose, userPPABalance, ppaPrice
 
   const parsedAmount = parseFloat(amount) || 0;
   const dailyReward = parsedAmount * 0.01;
-  const threeDayReward = parsedAmount * 0.03;
-  const thirtyDayReward = parsedAmount * 0.3;
+  const threeDayTotal = parsedAmount * 1.03;
+  const thirtyDayTotal = parsedAmount * 1.3;
 
   if (!isOpen) return null;
 
@@ -314,19 +314,19 @@ export default function LockingModal({ isOpen, onClose, userPPABalance, ppaPrice
                 <div className="bg-gray-800 rounded-lg p-3 border border-gray-700">
                   <p className="text-gray-400 text-xs uppercase tracking-wider">Daily Reward</p>
                   <p className="text-white text-lg font-bold mt-1">
-                    {dailyReward > 0 ? dailyReward.toFixed(4) : '0.0000'} PPA
+                    {dailyReward > 0 ? formatTokenAmount(dailyReward) : '0'} PPA
                   </p>
                 </div>
                 <div className="bg-gray-800 rounded-lg p-3 border border-gray-700">
                   <p className="text-gray-400 text-xs uppercase tracking-wider">After 3 Days</p>
                   <p className="text-white text-lg font-bold mt-1">
-                    {parsedAmount > 0 ? (parsedAmount + threeDayReward).toFixed(4) : '0.0000'} PPA
+                    {parsedAmount > 0 ? formatTokenAmount(threeDayTotal) : '0'} PPA
                   </p>
                 </div>
                 <div className="bg-gray-800 rounded-lg p-3 border border-gray-700">
                   <p className="text-gray-400 text-xs uppercase tracking-wider">After 30 Days</p>
                   <p className="text-white text-lg font-bold mt-1">
-                    {parsedAmount > 0 ? (parsedAmount + thirtyDayReward).toFixed(4) : '0.0000'} PPA
+                    {parsedAmount > 0 ? formatTokenAmount(thirtyDayTotal) : '0'} PPA
                   </p>
                 </div>
               </div>
