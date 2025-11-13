@@ -594,6 +594,8 @@ export interface PPALock {
   unlocks_at: string;
   status: 'active' | 'unlocked' | 'cancelled';
   transaction_hash: string;
+  accrued_ppa: number;
+  last_accrued_at?: string;
   created_at: string;
   updated_at: string;
 }
@@ -608,6 +610,8 @@ export interface CreatePPALockData {
   boost_percentage: number;
   total_percentage: number;
   transaction_hash: string;
+  accrued_ppa?: number;
+  last_accrued_at?: string;
 }
 
 export interface PPAUnlockRequest {
@@ -642,6 +646,8 @@ export class PPALocksService {
       const lockedAt = new Date();
       const unlocksAt = new Date(lockedAt.getTime() + (data.lock_days * 24 * 60 * 60 * 1000));
       
+      const lastAccruedAt = data.last_accrued_at ? new Date(data.last_accrued_at) : lockedAt;
+
       const { data: lock, error } = await supabase
         .from('ppa_locks')
         .insert([{
@@ -655,6 +661,8 @@ export class PPALocksService {
           total_percentage: data.total_percentage,
           locked_at: lockedAt.toISOString(),
           unlocks_at: unlocksAt.toISOString(),
+          last_accrued_at: lastAccruedAt.toISOString(),
+          accrued_ppa: data.accrued_ppa ?? 0,
           transaction_hash: data.transaction_hash,
           status: 'active'
         }])
@@ -704,6 +712,13 @@ export class PPALocksService {
    */
   async getActiveLocksByWallet(walletAddress: string): Promise<PPALock[]> {
     try {
+      const { error: accrualError } = await supabase.rpc('update_ppa_accrual', {
+        p_wallet: walletAddress,
+      });
+      if (accrualError) {
+        console.error('❌ Error updating PPA accrual:', accrualError);
+      }
+
       const { data: locks, error } = await supabase
         .from('ppa_locks')
         .select('*')
@@ -724,15 +739,22 @@ export class PPALocksService {
   }
 
   /**
-   * Calculate lifetime SOL earnings from PPA locks for a wallet
+   * Calculate lifetime PPA rewards for a wallet
    */
   async getLifetimeEarnings(walletAddress: string): Promise<number> {
     try {
       console.log('💰 Calculating lifetime PPA lock earnings for:', walletAddress);
-      
+
+      const { error: accrualError } = await supabase.rpc('update_ppa_accrual', {
+        p_wallet: walletAddress,
+      });
+      if (accrualError) {
+        console.error('❌ Error updating PPA accrual:', accrualError);
+      }
+
       const { data: locks, error } = await supabase
         .from('ppa_locks')
-        .select('ppa_amount, locked_at, updated_at, status')
+        .select('accrued_ppa')
         .eq('wallet_address', walletAddress);
 
       if (error) {
@@ -744,39 +766,10 @@ export class PPALocksService {
         return 0;
       }
 
-      const now = Date.now();
-      const msPerDay = 1000 * 60 * 60 * 24;
-
       const totalPPARewards = locks.reduce((total, lock) => {
-        const baseAmount = Number(lock.ppa_amount) || 0;
-        if (!lock.locked_at || baseAmount <= 0) {
-          return total;
-        }
-
-        const lockedAtMs = new Date(lock.locked_at).getTime();
-        if (Number.isNaN(lockedAtMs)) {
-          return total;
-        }
-
-        let accrualEndMs = now;
-        if (lock.status !== 'active' && lock.updated_at) {
-          const updatedMs = new Date(lock.updated_at).getTime();
-          if (!Number.isNaN(updatedMs)) {
-            accrualEndMs = Math.max(updatedMs, lockedAtMs);
-          }
-        }
-
-        const elapsedMs = Math.max(0, accrualEndMs - lockedAtMs);
-        const daysElapsed = Math.floor(elapsedMs / msPerDay);
-
-        if (daysElapsed <= 0) {
-          return total;
-        }
-
-        const rewardAmount = baseAmount * 0.01 * daysElapsed;
-        return total + rewardAmount;
+        return total + Number((lock as any).accrued_ppa || 0);
       }, 0);
-      
+
       console.log(`✅ Lifetime PPA rewards accrued: ${totalPPARewards} PPA`);
       return totalPPARewards;
     } catch (error) {

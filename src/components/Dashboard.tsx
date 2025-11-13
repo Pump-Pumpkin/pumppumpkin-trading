@@ -113,49 +113,45 @@ const calculatePPALockGrowth = (
   lock: PPALock,
   referenceDate: Date = new Date()
 ): LockGrowthMetrics => {
-  const baseAmount = Number(lock.ppa_amount) || 0;
-  if (!lock.locked_at || baseAmount <= 0) {
+  const principal =
+    Number(lock.ppa_amount) + Number((lock as any).accrued_ppa ?? 0);
+
+  if (!lock.locked_at || principal <= 0) {
     return {
       daysElapsed: 0,
       bonusAmount: 0,
-      currentAmount: baseAmount,
+      currentAmount: principal,
       bonusPercent: 0,
     };
   }
 
-  const lockedAtMs = new Date(lock.locked_at).getTime();
-  if (Number.isNaN(lockedAtMs)) {
+  const lastAccruedAt = lock.last_accrued_at ?? lock.locked_at;
+  const lastAccruedMs = new Date(lastAccruedAt).getTime();
+  if (Number.isNaN(lastAccruedMs)) {
     return {
       daysElapsed: 0,
       bonusAmount: 0,
-      currentAmount: baseAmount,
+      currentAmount: principal,
       bonusPercent: 0,
     };
   }
 
-  let accrualEndMs = referenceDate.getTime();
-  if (lock.status !== "active" && lock.updated_at) {
-    const updatedMs = new Date(lock.updated_at).getTime();
-    if (!Number.isNaN(updatedMs)) {
-      accrualEndMs = Math.max(updatedMs, lockedAtMs);
-    }
-  }
-
-  const elapsedMs = Math.max(0, accrualEndMs - lockedAtMs);
+  const elapsedMs = Math.max(0, referenceDate.getTime() - lastAccruedMs);
   const daysElapsed = Math.floor(elapsedMs / MS_PER_DAY);
 
   if (daysElapsed <= 0) {
     return {
       daysElapsed: 0,
       bonusAmount: 0,
-      currentAmount: baseAmount,
+      currentAmount: principal,
       bonusPercent: 0,
     };
   }
 
-  const bonusAmount = baseAmount * 0.01 * daysElapsed;
-  const currentAmount = baseAmount + bonusAmount;
-  const bonusPercent = baseAmount > 0 ? (bonusAmount / baseAmount) * 100 : 0;
+  const growthFactor = Math.pow(1.01, daysElapsed) - 1;
+  const bonusAmount = principal * growthFactor;
+  const currentAmount = principal + bonusAmount;
+  const bonusPercent = principal > 0 ? (bonusAmount / principal) * 100 : 0;
 
   return {
     daysElapsed,
