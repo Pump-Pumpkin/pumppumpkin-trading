@@ -18,11 +18,11 @@ interface Props {
 }
 
 export const WalletContextProvider: FC<Props> = ({ children }) => {
-    // The network can be set to 'devnet', 'testnet', or 'mainnet-beta'
-    const network = WalletAdapterNetwork.Mainnet;
-
-    // You can also provide a custom RPC endpoint
-    const endpoint = useMemo(() => clusterApiUrl(network), [network]);
+    // Use QuickNode RPC for better reliability and no rate limits
+    const endpoint = useMemo(() => 
+        'https://solitary-methodical-resonance.solana-mainnet.quiknode.pro/75cfc57db8a6530f4f781550e81c834f7f96cf61/',
+        []
+    );
 
     const wallets = useMemo(
         () => [
