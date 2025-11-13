@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { WalletContextProvider } from './components/WalletProvider';
 import WalletButton from './components/WalletButton';
 import TermsOfService from './components/TermsOfService';
@@ -6,10 +7,11 @@ import SetupProfile from './components/SetupProfile';
 import Dashboard from './components/Dashboard';
 import { userProfileService, UserProfile } from './services/supabaseClient';
 import { initializeBusinessPlanOptimizations } from './services/birdeyeApi';
+import LandingPage from './components/LandingPage';
 
 type AppState = 'connect' | 'terms' | 'profile' | 'dashboard' | 'loading';
 
-function AppContent() {
+function TradingApp() {
   const [currentState, setCurrentState] = useState<AppState>('connect');
   const [isConnected, setIsConnected] = useState(false);
   const [walletAddress, setWalletAddress] = useState<string>('');
@@ -328,7 +330,13 @@ function App() {
 
   return (
     <WalletContextProvider>
-      <AppContent />
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<LandingPage />} />
+          <Route path="/trading" element={<TradingApp />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </BrowserRouter>
     </WalletContextProvider>
   );
 }

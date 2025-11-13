@@ -1014,7 +1014,7 @@ export default function Dashboard({
     }
 
     if (activePPALocks.length === 0) {
-      return "No PPA tokens locked. Lock some tokens first to earn SOL rewards.";
+      return "No PPA tokens locked. Lock some tokens first to earn PPA rewards.";
     }
 
     // Get the latest lock (most recent)
