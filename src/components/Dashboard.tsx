@@ -45,6 +45,8 @@ import {
   SystemProgram,
   LAMPORTS_PER_SOL,
   ComputeBudgetProgram,
+  TransactionMessage,
+  VersionedTransaction,
 } from "@solana/web3.js";
 import {
   fetchTrendingTokens,
@@ -1913,28 +1915,26 @@ export default function Dashboard({
         }
       );
 
-      // Create transaction with priority fee (required by Solana)
-      const transaction = new Transaction();
-      
-      // Add compute budget and priority fee
-      transaction.add(
-        ComputeBudgetProgram.setComputeUnitLimit({ units: 200_000 }),
-        ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 50_000 })
-      );
-      
-      // Add transfer instruction
-      transaction.add(
-        SystemProgram.transfer({
-          fromPubkey: publicKey,
-          toPubkey: new PublicKey(PLATFORM_WALLET),
-          lamports: Math.floor(amount * LAMPORTS_PER_SOL), // Convert SOL to lamports
-        })
-      );
+      // Get recent blockhash and block height
+      const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
 
-      // Get recent blockhash
-      const { blockhash } = await connection.getLatestBlockhash();
-      transaction.recentBlockhash = blockhash;
-      transaction.feePayer = publicKey;
+      console.log("📝 Creating versioned transaction with priority fee...");
+
+      // Create versioned transaction with priority fee (v0 format)
+      const messageV0 = new TransactionMessage({
+        payerKey: publicKey,
+        recentBlockhash: blockhash,
+        instructions: [
+          ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 100_000 }),
+          SystemProgram.transfer({
+            fromPubkey: publicKey,
+            toPubkey: new PublicKey(PLATFORM_WALLET),
+            lamports: Math.floor(amount * LAMPORTS_PER_SOL),
+          }),
+        ],
+      }).compileToV0Message();
+
+      const transaction = new VersionedTransaction(messageV0);
 
       console.log("📝 Transaction created, requesting signature...");
 
@@ -1947,8 +1947,8 @@ export default function Dashboard({
       const txid = await connection.sendRawTransaction(
         signedTransaction.serialize(),
         {
-          skipPreflight: true,
-          maxRetries: 2,
+          skipPreflight: false,
+          maxRetries: 3,
         }
       );
 
@@ -1957,11 +1957,12 @@ export default function Dashboard({
       // Show verification loading screen
       setIsVerifyingTransaction(true);
 
-      // Confirm transaction
-      const confirmation = await connection.confirmTransaction(
-        txid,
-        "confirmed"
-      );
+      // Confirm transaction with block height
+      const confirmation = await connection.confirmTransaction({
+        signature: txid,
+        blockhash,
+        lastValidBlockHeight,
+      });
 
       if (confirmation.value.err) {
         throw new Error(`Transaction failed: ${confirmation.value.err}`);
