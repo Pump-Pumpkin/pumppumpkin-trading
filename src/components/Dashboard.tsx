@@ -3134,7 +3134,7 @@ export default function Dashboard({
                   style={{ backgroundColor: "#1e7cfa" }}
                 >
                   <Wallet className="w-4 h-4" />
-                  <span>Earn SOL</span>
+                  <span>Be The House</span>
                 </button>
 
                 {/* Unlock Button with Tooltip */}
