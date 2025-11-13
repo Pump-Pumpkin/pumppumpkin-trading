@@ -3037,7 +3037,7 @@ export default function Dashboard({
             {/* PPA Info - Compact */}
             <div className="bg-gray-900 border border-gray-700 rounded-lg p-4 mb-4">
               <h3 className="text-sm font-bold text-white mb-3">
-                Lock Your PPA Tokens And Get SOL To Trade With Immediately
+                Lock your PPA earnings and get rewards each month for providing liquidity to the platform
               </h3>
               <p className="text-gray-400 text-xs mb-3">
                 Lock your PPA tokens for 7-30 days and receive SOL rewards
