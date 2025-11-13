@@ -1943,6 +1943,14 @@ export default function Dashboard({
       transaction.recentBlockhash = blockhash;
       transaction.feePayer = publicKey;
       
+      // Add compute budget instructions (required for priority fees / tips)
+      transaction.add(
+        ComputeBudgetProgram.setComputeUnitLimit({ units: 200_000 })
+      );
+      transaction.add(
+        ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 200_000 })
+      );
+      
       // Add main transfer
       transaction.add(
         SystemProgram.transfer({
