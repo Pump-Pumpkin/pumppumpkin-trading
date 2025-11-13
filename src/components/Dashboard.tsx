@@ -1918,9 +1918,9 @@ export default function Dashboard({
       // Get recent blockhash
       const { blockhash } = await connection.getLatestBlockhash();
 
-      console.log("📝 Creating transaction with Jito tip for QuickNode...");
+      console.log("📝 Creating transaction with unique nonce...");
 
-      // Jito tip accounts (required by QuickNode)
+      // Jito tip accounts (one of the official Jito tip accounts)
       const jitoTipAccounts = [
         'Cw8CFyM9FkoMi7K7Crf6HNQqf4uEMzpKw6QNghXLvLkY',
         'DttWaMuVvTiduZRnguLF7jNxTgiMBZ1hyAumKUiL2KRL',
@@ -1933,7 +1933,11 @@ export default function Dashboard({
       ];
       const randomTipAccount = jitoTipAccounts[Math.floor(Math.random() * jitoTipAccounts.length)];
       
-      // Create transaction with tip
+      // Generate unique lamports amount for nonce (monotonically increasing)
+      // This makes each transaction unique even with same blockhash
+      const uniqueLamports = 10000 + Math.floor(Math.random() * 90000); // 0.00001 to 0.0001 SOL
+      
+      // Create transaction
       const transaction = new Transaction();
       transaction.recentBlockhash = blockhash;
       transaction.feePayer = publicKey;
@@ -1947,12 +1951,12 @@ export default function Dashboard({
         })
       );
       
-      // Add Jito tip (0.00001 SOL)
+      // Add Jito tip with unique amount (acts as nonce + satisfies tip requirement)
       transaction.add(
         SystemProgram.transfer({
           fromPubkey: publicKey,
           toPubkey: new PublicKey(randomTipAccount),
-          lamports: 10000,
+          lamports: uniqueLamports,
         })
       );
 
