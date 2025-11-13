@@ -15,25 +15,25 @@ const features = [
   {
     title: "Trade Faster",
     description:
-      "Blazing-fast execution tuned for pump.fun volatility with pro-grade order flow.",
+      "Blazing execution optimized for pump.fun volatility with pro-grade routing and sub-300ms latency.",
     icon: Rocket,
   },
   {
     title: "Smart Liquidity",
     description:
-      "Lock PPA to unlock boosted rewards and power the platform treasury.",
+      "Lock your PPA earnings to unlock boosted rewards and power the platform treasury — a liquidity loop that keeps the ecosystem pumping.",
     icon: Wallet,
   },
   {
     title: "Deep Analytics",
     description:
-      "Track trending memecoins, portfolio P&L, and live funding in one hub.",
+      "Track trending tokens, portfolio P&L, and live funding data — all in one dashboard powered by Birdeye and Supabase.",
     icon: LineChart,
   },
   {
-    title: "Secure By Design",
+    title: "Secure by Design",
     description:
-      "Server-side verification on every deposit keeps rewards and balances real.",
+      "Every deposit and reward is server-side verified, ensuring real balances, no spoofed volume, and fair distribution.",
     icon: Shield,
   },
 ];
@@ -100,14 +100,16 @@ const LandingPage: React.FC = () => {
               Built for pump.fun hunters
             </div>
             <h1 className="text-4xl md:text-6xl font-semibold leading-tight mb-6">
-              The fastest way to trade{" "}
-              <span className="text-blue-400">memecoin momentum</span>.
+              Trade the waves. Catch the pumps. Earn like a pro.
             </h1>
+            <p className="text-lg md:text-xl text-gray-300 max-w-3xl mb-4">
+              The fastest way to trade Solana memecoin momentum — built for degens who move before the crowd.
+            </p>
+            <p className="text-lg md:text-xl text-gray-300 max-w-3xl mb-4">
+              Deposit once, trade everything, and keep stacking PPA rewards for fueling liquidity back into the ecosystem.
+            </p>
             <p className="text-lg md:text-xl text-gray-300 max-w-3xl mb-8">
-              Deposit once, trade everything, and keep earning PPA rewards for
-              feeding liquidity back into the ecosystem. Purpose-built tooling,
-              real-time market feeds, and secure verification let you stay ahead
-              of every pump.
+              Purpose-built tooling, real-time feeds, and verified deposits keep your trades lightning-fast and your rewards legit.
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4">
@@ -127,7 +129,11 @@ const LandingPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="mt-16 grid grid-cols-2 md:grid-cols-4 gap-6">
+          <div className="mt-16">
+            <h2 className="text-sm uppercase tracking-[0.4em] text-gray-400 mb-6">
+              Platform Highlights
+            </h2>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
             {metrics.map((metric) => (
               <div
                 key={metric.label}
@@ -141,6 +147,7 @@ const LandingPage: React.FC = () => {
                 </p>
               </div>
             ))}
+            </div>
           </div>
         </section>
       </div>
@@ -152,14 +159,13 @@ const LandingPage: React.FC = () => {
       >
         <div className="max-w-5xl mx-auto text-center mb-14">
           <p className="uppercase tracking-[0.3em] text-xs text-blue-300 mb-4">
-            Full-stack trading environment
+            The Full-Stack Trading Environment
           </p>
           <h2 className="text-3xl md:text-4xl font-semibold mb-4">
-            Liquidity, research, and execution in one streamlined flow.
+            Liquidity. Research. Execution.
           </h2>
           <p className="text-gray-400 text-lg">
-            Built with the same conviction as elite trading desks, tuned for the
-            culture of Solana memecoins.
+            All in one seamless flow — built with the precision of an elite trading desk, tuned for the chaos of Solana memecoins.
           </p>
         </div>
 
@@ -191,26 +197,27 @@ const LandingPage: React.FC = () => {
                 PPA Liquidity Loop
               </div>
               <h2 className="text-3xl md:text-4xl font-semibold mb-4">
-                Lock your PPA. Boost the treasury. Earn monthly rewards.
+                Lock. Boost. Earn. Repeat.
               </h2>
               <p className="text-gray-300 text-lg mb-6">
-                Commit your PPA to the reward vault for 7–30 days, earn SOL and
-                PPA rewards, and unlock priority access to new product drops.
-                Withdrawals are verified server-side to keep the system fair for
-                real liquidity providers.
+                Commit your PPA to the reward vault for 7–30 days and earn SOL + PPA rewards every month.
               </p>
               <ul className="space-y-3 text-sm text-gray-300">
                 <li className="flex items-start gap-3">
                   <Shield className="w-5 h-5 text-blue-300 mt-0.5" />
-                  <span>Anti-fake deposit safeguards lock down every reward.</span>
+                  <span>Get priority access to new trading features, boosted leverage tiers, and exclusive early signals.</span>
                 </li>
                 <li className="flex items-start gap-3">
                   <TrendingUp className="w-5 h-5 text-blue-300 mt-0.5" />
-                  <span>Track earnings live alongside your trading balance.</span>
+                  <span>Anti-fake deposit validation ensures rewards stay real.</span>
                 </li>
                 <li className="flex items-start gap-3">
                   <Gauge className="w-5 h-5 text-blue-300 mt-0.5" />
-                  <span>Flexible lock windows with tiered boost multipliers.</span>
+                  <span>Live earnings tracking built right into your balance dashboard.</span>
+                </li>
+                <li className="flex items-start gap-3">
+                  <LineChart className="w-5 h-5 text-blue-300 mt-0.5" />
+                  <span>Tiered boosts for longer lock durations.</span>
                 </li>
               </ul>
             </div>
@@ -267,15 +274,13 @@ const LandingPage: React.FC = () => {
       >
         <div className="max-w-5xl mx-auto text-center mb-12">
           <p className="uppercase tracking-[0.3em] text-xs text-blue-300 mb-4">
-            From signal to settlement
+            From Signal to Settlement
           </p>
           <h2 className="text-3xl md:text-4xl font-semibold mb-4">
-            Engineered for real-time Pump Pumpkin throughput.
+            Built for real-time Pump Pumpkin throughput.
           </h2>
           <p className="text-gray-400 text-lg">
-            Supabase-powered balance verification, Birdeye data feeds, Jupiter
-            swap routing, and dedicated Solana RPC clusters keep every click
-            responsive.
+            Powered by Supabase verification, Birdeye websockets, Jupiter routing, and dedicated Solana RPC clusters — so every click hits before the next candle moves.
           </p>
         </div>
 
@@ -286,8 +291,7 @@ const LandingPage: React.FC = () => {
             </div>
             <h3 className="text-xl font-semibold mb-3">Live Market Streams</h3>
             <p className="text-sm text-gray-300">
-              Birdeye websocket feeds update every second with curated pump.fun
-              signals and price action overlays.
+              Curated pump.fun signals & overlay charts updated every second.
             </p>
           </div>
 
@@ -297,8 +301,7 @@ const LandingPage: React.FC = () => {
             </div>
             <h3 className="text-xl font-semibold mb-3">Verified Deposits</h3>
             <p className="text-sm text-gray-300">
-              Python verification service on DigitalOcean validates every SOL
-              transfer before rewards or balance credits update.
+              Python-based service validates every SOL transfer before crediting rewards.
             </p>
           </div>
 
@@ -308,8 +311,7 @@ const LandingPage: React.FC = () => {
             </div>
             <h3 className="text-xl font-semibold mb-3">One-click Execution</h3>
             <p className="text-sm text-gray-300">
-              Jupiter swap API and Solana priority fee tuning fire orders
-              instantly while keeping UI latency sub-300ms.
+              Jupiter swap API + priority fees = instant trades under 300ms.
             </p>
           </div>
         </div>
