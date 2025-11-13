@@ -173,9 +173,9 @@ const LandingPage: React.FC = () => {
           {features.map(({ title, description, icon: Icon }) => (
             <div
               key={title}
-              className="border border-white/10 bg-white/5 rounded-3xl p-8 text-left flex flex-col gap-4 hover:border-blue-500/40 transition-colors"
+              className="border border-white/10 bg-white/5 rounded-3xl p-8 text-center flex flex-col items-center gap-4 hover:border-blue-500/40 transition-colors"
             >
-              <div className="h-12 w-12 rounded-2xl bg-blue-500/20 border border-blue-500/40 flex items-center justify-center">
+              <div className="h-12 w-12 rounded-2xl bg-blue-500/20 border border-blue-500/40 flex items-center justify-center mx-auto">
                 <Icon className="w-6 h-6 text-blue-300" />
               </div>
               <h3 className="text-2xl font-semibold">{title}</h3>
@@ -203,20 +203,20 @@ const LandingPage: React.FC = () => {
                 Commit your PPA to the reward vault for 7–30 days and earn SOL + PPA rewards every month.
               </p>
               <ul className="space-y-3 text-sm text-gray-300">
-                <li className="flex items-start gap-3">
-                  <Shield className="w-5 h-5 text-blue-300 mt-0.5" />
+                <li className="flex items-center gap-3">
+                  <Shield className="w-5 h-5 text-blue-300" />
                   <span>Get priority access to new trading features, boosted leverage tiers, and exclusive early signals.</span>
                 </li>
-                <li className="flex items-start gap-3">
-                  <TrendingUp className="w-5 h-5 text-blue-300 mt-0.5" />
+                <li className="flex items-center gap-3">
+                  <TrendingUp className="w-5 h-5 text-blue-300" />
                   <span>Anti-fake deposit validation ensures rewards stay real.</span>
                 </li>
-                <li className="flex items-start gap-3">
-                  <Gauge className="w-5 h-5 text-blue-300 mt-0.5" />
+                <li className="flex items-center gap-3">
+                  <Gauge className="w-5 h-5 text-blue-300" />
                   <span>Live earnings tracking built right into your balance dashboard.</span>
                 </li>
-                <li className="flex items-start gap-3">
-                  <LineChart className="w-5 h-5 text-blue-300 mt-0.5" />
+                <li className="flex items-center gap-3">
+                  <LineChart className="w-5 h-5 text-blue-300" />
                   <span>Tiered boosts for longer lock durations.</span>
                 </li>
               </ul>
@@ -285,7 +285,7 @@ const LandingPage: React.FC = () => {
         </div>
 
         <div className="grid md:grid-cols-3 gap-6">
-          <div className="border border-white/10 rounded-3xl p-8 bg-white/5 text-left hover:border-blue-500/30 transition-colors">
+          <div className="border border-white/10 rounded-3xl p-8 bg-white/5 text-center hover:border-blue-500/30 transition-colors flex flex-col items-center">
             <div className="h-10 w-10 rounded-xl bg-blue-500/20 border border-blue-500/40 flex items-center justify-center mb-4">
               <Zap className="w-5 h-5 text-blue-200" />
             </div>
@@ -295,7 +295,7 @@ const LandingPage: React.FC = () => {
             </p>
           </div>
 
-          <div className="border border-white/10 rounded-3xl p-8 bg-white/5 text-left hover:border-blue-500/30 transition-colors">
+          <div className="border border-white/10 rounded-3xl p-8 bg-white/5 text-center hover:border-blue-500/30 transition-colors flex flex-col items-center">
             <div className="h-10 w-10 rounded-xl bg-blue-500/20 border border-blue-500/40 flex items-center justify-center mb-4">
               <Shield className="w-5 h-5 text-blue-200" />
             </div>
@@ -305,7 +305,7 @@ const LandingPage: React.FC = () => {
             </p>
           </div>
 
-          <div className="border border-white/10 rounded-3xl p-8 bg-white/5 text-left hover:border-blue-500/30 transition-colors">
+          <div className="border border-white/10 rounded-3xl p-8 bg-white/5 text-center hover:border-blue-500/30 transition-colors flex flex-col items-center">
             <div className="h-10 w-10 rounded-xl bg-blue-500/20 border border-blue-500/40 flex items-center justify-center mb-4">
               <TrendingUp className="w-5 h-5 text-blue-200" />
             </div>
