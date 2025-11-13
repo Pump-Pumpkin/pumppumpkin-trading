@@ -44,6 +44,7 @@ import {
   Transaction,
   SystemProgram,
   LAMPORTS_PER_SOL,
+  ComputeBudgetProgram,
 } from "@solana/web3.js";
 import {
   fetchTrendingTokens,
@@ -1912,8 +1913,17 @@ export default function Dashboard({
         }
       );
 
-      // Create transaction
-      const transaction = new Transaction().add(
+      // Create transaction with priority fee (required by Solana)
+      const transaction = new Transaction();
+      
+      // Add compute budget and priority fee
+      transaction.add(
+        ComputeBudgetProgram.setComputeUnitLimit({ units: 200_000 }),
+        ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 50_000 })
+      );
+      
+      // Add transfer instruction
+      transaction.add(
         SystemProgram.transfer({
           fromPubkey: publicKey,
           toPubkey: new PublicKey(PLATFORM_WALLET),
