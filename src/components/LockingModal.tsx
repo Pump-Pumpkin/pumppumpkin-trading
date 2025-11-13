@@ -235,6 +235,20 @@ export default function LockingModal({ isOpen, onClose, userPPABalance, ppaPrice
   const threeDayTotal = parsedAmount * 1.03;
   const thirtyDayTotal = parsedAmount * 1.3;
 
+  const formatCompactPPA = (value: number) => {
+    if (!isFinite(value) || value <= 0) {
+      return '0';
+    }
+
+    const formatter = new Intl.NumberFormat('en', {
+      notation: 'compact',
+      maximumFractionDigits: value >= 100 ? 1 : 2,
+      minimumFractionDigits: 0,
+    });
+
+    return formatter.format(value).toLowerCase();
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -314,19 +328,19 @@ export default function LockingModal({ isOpen, onClose, userPPABalance, ppaPrice
                 <div className="bg-gray-800 rounded-lg p-3 border border-gray-700">
                   <p className="text-gray-400 text-xs uppercase tracking-wider">Daily Reward</p>
                   <p className="text-white text-lg font-bold mt-1">
-                    {dailyReward > 0 ? formatTokenAmount(dailyReward) : '0'} PPA
+                    {dailyReward > 0 ? formatCompactPPA(dailyReward) : '0'} PPA
                   </p>
                 </div>
                 <div className="bg-gray-800 rounded-lg p-3 border border-gray-700">
                   <p className="text-gray-400 text-xs uppercase tracking-wider">After 3 Days</p>
                   <p className="text-white text-lg font-bold mt-1">
-                    {parsedAmount > 0 ? formatTokenAmount(threeDayTotal) : '0'} PPA
+                    {parsedAmount > 0 ? formatCompactPPA(threeDayTotal) : '0'} PPA
                   </p>
                 </div>
                 <div className="bg-gray-800 rounded-lg p-3 border border-gray-700">
                   <p className="text-gray-400 text-xs uppercase tracking-wider">After 30 Days</p>
                   <p className="text-white text-lg font-bold mt-1">
-                    {parsedAmount > 0 ? formatTokenAmount(thirtyDayTotal) : '0'} PPA
+                    {parsedAmount > 0 ? formatCompactPPA(thirtyDayTotal) : '0'} PPA
                   </p>
                 </div>
               </div>

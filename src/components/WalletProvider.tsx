@@ -2,7 +2,6 @@ import React, { FC, ReactNode, useMemo } from 'react';
 import { ConnectionProvider, WalletProvider } from '@solana/wallet-adapter-react';
 import { WalletAdapterNetwork } from '@solana/wallet-adapter-base';
 import {
-    PhantomWalletAdapter,
     SolflareWalletAdapter,
     TorusWalletAdapter,
     LedgerWalletAdapter,
@@ -20,13 +19,12 @@ interface Props {
 export const WalletContextProvider: FC<Props> = ({ children }) => {
     // Use public RPC for compatibility in the browser
     const endpoint = useMemo(
-        () => 'https://rpc.solana.publicnode.com',
+        () => 'https://solitary-methodical-resonance.solana-mainnet.quiknode.pro/75cfc57db8a6530f4f781550e81c834f7f96cf61/',
         []
     );
 
     const wallets = useMemo(
         () => [
-            new PhantomWalletAdapter(),
             new SolflareWalletAdapter(),
             new TorusWalletAdapter(),
             new LedgerWalletAdapter(),

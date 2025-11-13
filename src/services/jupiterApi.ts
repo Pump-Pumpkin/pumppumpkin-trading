@@ -29,7 +29,7 @@ export class JupiterSwapService {
   private connection: Connection;
 
   constructor() {
-    this.connection = new Connection('https://rpc.solana.publicnode.com', {
+    this.connection = new Connection('https://solitary-methodical-resonance.solana-mainnet.quiknode.pro/75cfc57db8a6530f4f781550e81c834f7f96cf61/', {
       commitment: 'confirmed',
       confirmTransactionInitialTimeout: 60000,
     });
