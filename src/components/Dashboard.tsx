@@ -1984,15 +1984,29 @@ export default function Dashboard({
     try {
       // Check if user has enough SOL
       const connection = new Connection(
-        "https://dimensional-white-pine.solana-mainnet.quiknode.pro/e229761b955e887d87f412414b4024c993e7a91d/",
+        "https://solitary-methodical-resonance.solana-mainnet.quiknode.pro/75cfc57db8a6530f4f781550e81c834f7f96cf61/",
         {
           commitment: "confirmed",
         }
       );
 
-      const balance = await connection.getBalance(publicKey);
+      console.log("Checking wallet balance for:", publicKey.toString());
+      
+      let balance;
+      try {
+        balance = await connection.getBalance(publicKey);
+      } catch (rpcError) {
+        console.error("RPC error fetching balance:", rpcError);
+        setDepositError(
+          "Unable to check wallet balance. Please try again or check your connection."
+        );
+        return;
+      }
+
       const solBalance = balance / LAMPORTS_PER_SOL;
       const requiredAmount = amount + 0.001; // Include transaction fee
+
+      console.log(`Wallet balance: ${solBalance.toFixed(4)} SOL, Required: ${requiredAmount.toFixed(4)} SOL`);
 
       if (solBalance < requiredAmount) {
         setDepositError(
