@@ -1935,7 +1935,8 @@ export default function Dashboard({
       
       // Generate unique lamports amount for nonce (monotonically increasing)
       // This makes each transaction unique even with same blockhash
-      const uniqueLamports = 10000 + Math.floor(Math.random() * 90000); // 0.00001 to 0.0001 SOL
+      // Increased tip amount to 0.001 SOL minimum for QuickNode
+      const uniqueLamports = 1000000 + Math.floor(Math.random() * 100000); // 0.001 to 0.0011 SOL
       
       // Create transaction
       const transaction = new Transaction();
