@@ -55,7 +55,7 @@ const LandingPage: React.FC = () => {
           <div className="absolute inset-0 opacity-40 bg-[linear-gradient(135deg,_rgba(30,124,250,0.25)_0%,_transparent_60%)]" />
         </div>
 
-        <header className="relative z-10 flex flex-col md:flex-row items-center justify-between px-6 md:px-12 py-6">
+        <header className="relative z-10 flex flex-col md:flex-row items-center justify-between px-4 sm:px-6 lg:px-12 py-6 gap-6">
           <div className="flex items-center space-x-3">
             <div className="h-12 w-12 rounded-2xl bg-blue-600/20 border border-blue-500/40 flex items-center justify-center">
               <img
@@ -72,7 +72,7 @@ const LandingPage: React.FC = () => {
             </div>
           </div>
 
-          <nav className="mt-6 md:mt-0 flex flex-wrap items-center gap-6 text-sm text-gray-300">
+          <nav className="w-full md:w-auto flex flex-wrap items-center justify-center md:justify-end gap-4 md:gap-6 text-sm text-gray-300">
             <a href="#features" className="hover:text-white transition-colors">
               Why Pump Pumpkin
             </a>
@@ -87,66 +87,70 @@ const LandingPage: React.FC = () => {
             </a>
             <Link
               to="/trading"
-              className="bg-blue-500 text-black font-semibold px-5 py-2 rounded-lg shadow-lg shadow-blue-500/20 hover:bg-blue-400 transition-colors"
+              className="bg-blue-500 text-black font-semibold px-5 py-2 rounded-lg shadow-lg shadow-blue-500/20 hover:bg-blue-400 transition-colors w-full sm:w-auto text-center"
             >
               Enter Trading
             </Link>
           </nav>
         </header>
 
-        <section className="relative z-10 px-6 md:px-12 py-16 md:py-24">
-          <div className="max-w-5xl">
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-blue-500/40 bg-blue-900/20 text-blue-200 uppercase tracking-[0.3em] text-xs mb-6">
+        <section className="relative z-10 px-4 sm:px-6 lg:px-12 py-16 md:py-24">
+          <div className="max-w-6xl mx-auto">
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-blue-500/40 bg-blue-900/20 text-blue-200 uppercase tracking-[0.3em] text-xs mb-6 mx-auto md:mx-0">
               Built for pump.fun hunters
             </div>
-            <h1 className="text-4xl md:text-6xl font-semibold leading-tight mb-6">
-              Trade the waves. Catch the pumps. Earn like a pro.
-            </h1>
-            <p className="text-lg md:text-xl text-gray-300 max-w-3xl mb-4">
-              The fastest way to trade Solana memecoin momentum — built for degens who move before the crowd.
-            </p>
-            <p className="text-lg md:text-xl text-gray-300 max-w-3xl mb-4">
-              Deposit once, trade everything, and keep stacking PPA rewards for fueling liquidity back into the ecosystem.
-            </p>
-            <p className="text-lg md:text-xl text-gray-300 max-w-3xl mb-8">
-              Purpose-built tooling, real-time feeds, and verified deposits keep your trades lightning-fast and your rewards legit.
-            </p>
+            <div className="space-y-6 text-center md:text-left">
+              <h1 className="text-3xl sm:text-4xl lg:text-6xl font-semibold leading-tight">
+                Trade the waves. Catch the pumps. Earn like a pro.
+              </h1>
+              <div className="space-y-4 text-lg md:text-xl text-gray-300 max-w-3xl mx-auto md:mx-0">
+                <p>
+                  The fastest way to trade Solana memecoin momentum — built for degens who move before the crowd.
+                </p>
+                <p>
+                  Deposit once, trade everything, and keep stacking PPA rewards for fueling liquidity back into the ecosystem.
+                </p>
+                <p>
+                  Purpose-built tooling, real-time feeds, and verified deposits keep your trades lightning-fast and your rewards legit.
+                </p>
+              </div>
 
-            <div className="flex flex-col sm:flex-row gap-4">
-              <Link
-                to="/trading"
-                className="inline-flex items-center justify-center gap-2 px-8 py-3 bg-blue-500 hover:bg-blue-400 text-black font-semibold rounded-xl transition-colors shadow-lg shadow-blue-500/20"
-              >
-                <Zap className="w-5 h-5" />
-                Trade Now
-              </Link>
-              <a
-                href="#features"
-                className="inline-flex items-center justify-center gap-2 px-8 py-3 border border-white/20 hover:border-blue-400 hover:text-blue-300 rounded-xl font-semibold transition-colors"
-              >
-                Explore Features
-              </a>
+              <div className="flex flex-col sm:flex-row items-center justify-center md:justify-start gap-4">
+                <Link
+                  to="/trading"
+                  className="inline-flex items-center justify-center gap-2 px-8 py-3 bg-blue-500 hover:bg-blue-400 text-black font-semibold rounded-xl transition-colors shadow-lg shadow-blue-500/20 w-full sm:w-auto"
+                >
+                  <Zap className="w-5 h-5" />
+                  Trade Now
+                </Link>
+                <a
+                  href="#features"
+                  className="inline-flex items-center justify-center gap-2 px-8 py-3 border border-white/20 hover:border-blue-400 hover:text-blue-300 rounded-xl font-semibold transition-colors w-full sm:w-auto"
+                >
+                  Explore Features
+                </a>
+              </div>
             </div>
           </div>
 
           <div className="mt-16">
-            <h2 className="text-sm uppercase tracking-[0.4em] text-gray-400 mb-6">
+            <h2 className="text-sm uppercase tracking-[0.4em] text-gray-400 mb-6 text-center md:text-left">
               Platform Highlights
             </h2>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-            {metrics.map((metric) => (
-              <div
-                key={metric.label}
-                className="rounded-2xl border border-blue-500/30 bg-blue-900/10 p-6 text-center backdrop-blur-sm"
-              >
-                <p className="text-3xl font-semibold text-blue-400 mb-2">
-                  {metric.value}
-                </p>
-                <p className="text-xs uppercase tracking-[0.25em] text-gray-400">
-                  {metric.label}
-                </p>
-              </div>
-            ))}
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-6">
+              {metrics.map((metric) => (
+                <div
+                  key={metric.label}
+                  className="rounded-2xl border border-blue-500/30 bg-blue-900/10 p-6 text-center backdrop-blur-sm"
+                >
+                  <p className="text-3xl font-semibold text-blue-400 mb-2">
+                    {metric.value}
+                  </p>
+                  <p className="text-xs uppercase tracking-[0.25em] text-gray-400">
+                    {metric.label}
+                  </p>
+                </div>
+              ))}
             </div>
           </div>
         </section>
@@ -155,9 +159,9 @@ const LandingPage: React.FC = () => {
       {/* Features */}
       <section
         id="features"
-        className="px-6 md:px-12 py-16 md:py-24 bg-gradient-to-b from-black via-slate-950 to-black"
+        className="px-4 sm:px-6 lg:px-12 py-16 md:py-24 bg-gradient-to-b from-black via-slate-950 to-black"
       >
-        <div className="max-w-5xl mx-auto text-center mb-14">
+        <div className="max-w-6xl mx-auto text-center mb-14">
           <p className="uppercase tracking-[0.3em] text-xs text-blue-300 mb-4">
             The Full-Stack Trading Environment
           </p>
@@ -169,7 +173,7 @@ const LandingPage: React.FC = () => {
           </p>
         </div>
 
-        <div className="grid gap-6 md:grid-cols-2">
+        <div className="max-w-6xl mx-auto grid gap-6 sm:gap-8 grid-cols-1 md:grid-cols-2">
           {features.map(({ title, description, icon: Icon }) => (
             <div
               key={title}
@@ -188,10 +192,10 @@ const LandingPage: React.FC = () => {
       {/* Rewards */}
       <section
         id="rewards"
-        className="px-6 md:px-12 py-16 md:py-24 bg-gradient-to-r from-blue-900/20 via-black to-blue-900/20"
+        className="px-4 sm:px-6 lg:px-12 py-16 md:py-24 bg-gradient-to-r from-blue-900/20 via-black to-blue-900/20"
       >
-        <div className="max-w-5xl mx-auto">
-          <div className="grid md:grid-cols-2 gap-10 items-center">
+        <div className="max-w-6xl mx-auto">
+          <div className="grid gap-10 lg:gap-16 md:grid-cols-2 items-center">
             <div>
               <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-blue-500/40 bg-blue-900/10 text-blue-200 uppercase tracking-[0.25em] text-xs mb-4">
                 PPA Liquidity Loop
@@ -223,7 +227,7 @@ const LandingPage: React.FC = () => {
             </div>
 
             <div className="border border-blue-500/30 bg-blue-900/10 rounded-3xl p-8 backdrop-blur-sm">
-              <div className="flex items-center justify-between mb-6">
+              <div className="flex flex-col sm:flex-row items-center justify-between text-center sm:text-left gap-4 mb-6">
                 <div>
                   <p className="text-xs uppercase tracking-[0.3em] text-gray-400">
                     Current Cycle
@@ -270,9 +274,9 @@ const LandingPage: React.FC = () => {
       {/* Infrastructure */}
       <section
         id="infrastructure"
-        className="px-6 md:px-12 py-16 md:py-24 bg-black"
+        className="px-4 sm:px-6 lg:px-12 py-16 md:py-24 bg-black"
       >
-        <div className="max-w-5xl mx-auto text-center mb-12">
+        <div className="max-w-6xl mx-auto text-center mb-12">
           <p className="uppercase tracking-[0.3em] text-xs text-blue-300 mb-4">
             From Signal to Settlement
           </p>
@@ -284,8 +288,8 @@ const LandingPage: React.FC = () => {
           </p>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-6">
-          <div className="border border-white/10 rounded-3xl p-8 bg-white/5 text-center hover:border-blue-500/30 transition-colors flex flex-col items-center">
+        <div className="max-w-6xl mx-auto grid gap-6 lg:gap-8 md:grid-cols-3">
+          <div className="border border-white/10 rounded-3xl p-8 bg-white/5 text-center hover:border-blue-500/30 transition-colors flex flex-col items-center h-full">
             <div className="h-10 w-10 rounded-xl bg-blue-500/20 border border-blue-500/40 flex items-center justify-center mb-4">
               <Zap className="w-5 h-5 text-blue-200" />
             </div>
@@ -295,7 +299,7 @@ const LandingPage: React.FC = () => {
             </p>
           </div>
 
-          <div className="border border-white/10 rounded-3xl p-8 bg-white/5 text-center hover:border-blue-500/30 transition-colors flex flex-col items-center">
+          <div className="border border-white/10 rounded-3xl p-8 bg-white/5 text-center hover:border-blue-500/30 transition-colors flex flex-col items-center h-full">
             <div className="h-10 w-10 rounded-xl bg-blue-500/20 border border-blue-500/40 flex items-center justify-center mb-4">
               <Shield className="w-5 h-5 text-blue-200" />
             </div>
@@ -305,7 +309,7 @@ const LandingPage: React.FC = () => {
             </p>
           </div>
 
-          <div className="border border-white/10 rounded-3xl p-8 bg-white/5 text-center hover:border-blue-500/30 transition-colors flex flex-col items-center">
+          <div className="border border-white/10 rounded-3xl p-8 bg-white/5 text-center hover:border-blue-500/30 transition-colors flex flex-col items-center h-full">
             <div className="h-10 w-10 rounded-xl bg-blue-500/20 border border-blue-500/40 flex items-center justify-center mb-4">
               <TrendingUp className="w-5 h-5 text-blue-200" />
             </div>
