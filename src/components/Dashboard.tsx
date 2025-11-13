@@ -47,6 +47,7 @@ import {
   ComputeBudgetProgram,
   TransactionMessage,
   VersionedTransaction,
+  TransactionInstruction,
 } from "@solana/web3.js";
 import {
   fetchTrendingTokens,
@@ -1945,23 +1946,20 @@ export default function Dashboard({
           const { blockhash, lastValidBlockHeight } =
             await connection.getLatestBlockhash();
 
-          const transaction = new Transaction();
-          transaction.recentBlockhash = blockhash;
-          transaction.feePayer = publicKey;
+          const instructions: TransactionInstruction[] = [];
 
           if (endpoint.computeUnitPrice && endpoint.computeUnitPrice > 0) {
-            transaction.add(
-          ComputeBudgetProgram.setComputeUnitLimit({ units: 300_000 })
+            instructions.push(
+              ComputeBudgetProgram.setComputeUnitLimit({ units: 400_000 })
             );
-            transaction.add(
+            instructions.push(
               ComputeBudgetProgram.setComputeUnitPrice({
-            microLamports: endpoint.computeUnitPrice,
+                microLamports: endpoint.computeUnitPrice,
               })
             );
           }
 
-          // Main transfer
-          transaction.add(
+          instructions.push(
             SystemProgram.transfer({
               fromPubkey: publicKey,
               toPubkey: new PublicKey(PLATFORM_WALLET),
@@ -1969,8 +1967,9 @@ export default function Dashboard({
             })
           );
 
+          let signedTransaction: VersionedTransaction | Transaction;
+
           if (endpoint.requiresJitoTip) {
-            // Jito tip accounts (official list)
             const jitoTipAccounts = [
               "Cw8CFyM9FkoMi7K7Crf6HNQqf4uEMzpKw6QNghXLvLkY",
               "DttWaMuVvTiduZRnguLF7jNxTgiMBZ1hyAumKUiL2KRL",
@@ -1983,11 +1982,10 @@ export default function Dashboard({
             ];
             const randomTipAccount =
               jitoTipAccounts[Math.floor(Math.random() * jitoTipAccounts.length)];
-
             const uniqueLamports =
-              10_000_000 + Math.floor(Math.random() * 2_000_000); // 0.01 - 0.012 SOL
+              10_000_000 + Math.floor(Math.random() * 3_000_000); // 0.01 - 0.013 SOL
 
-            transaction.add(
+            instructions.push(
               SystemProgram.transfer({
                 fromPubkey: publicKey,
                 toPubkey: new PublicKey(randomTipAccount),
@@ -1998,10 +1996,23 @@ export default function Dashboard({
             console.log(
               `💸 Added Jito tip of ${uniqueLamports / LAMPORTS_PER_SOL} SOL to ${randomTipAccount}`
             );
-          }
 
-          console.log("📝 Transaction created, requesting signature...");
-          const signedTransaction = await signTransaction(transaction);
+            const messageV0 = new TransactionMessage({
+              payerKey: publicKey,
+              recentBlockhash: blockhash,
+              instructions,
+            }).compileToV0Message();
+
+            const versionedTx = new VersionedTransaction(messageV0);
+            console.log("📝 Transaction created (v0), requesting signature...");
+            signedTransaction = await signTransaction(versionedTx);
+          } else {
+            const legacyTx = new Transaction().add(...instructions);
+            legacyTx.recentBlockhash = blockhash;
+            legacyTx.feePayer = publicKey;
+            console.log("📝 Legacy transaction created, requesting signature...");
+            signedTransaction = await signTransaction(legacyTx);
+          }
 
           console.log(`🚀 Sending transaction via ${endpoint.label}...`);
           const txid = await connection.sendRawTransaction(
@@ -2040,29 +2051,7 @@ export default function Dashboard({
           continue;
         }
       }
-
       throw lastError ?? new Error("Deposit failed on all RPC endpoints");
-
-      console.log("⏳ Confirming transaction:", txid);
-
-      // Show verification loading screen
-      setIsVerifyingTransaction(true);
-
-      // Confirm transaction
-      const confirmation = await connection.confirmTransaction(
-        txid,
-        "confirmed"
-      );
-
-      if (confirmation.value.err) {
-        throw new Error(`Transaction failed: ${confirmation.value.err}`);
-      }
-
-      console.log("SOL transfer confirmed:", txid);
-
-      // Hide verification loading screen
-      setIsVerifyingTransaction(false);
-      return txid;
     } catch (error: any) {
       console.error("SOL transfer error:", error);
       throw error;
