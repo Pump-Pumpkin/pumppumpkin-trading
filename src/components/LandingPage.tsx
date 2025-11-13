@@ -241,7 +241,7 @@ const LandingPage: React.FC = () => {
                   <p className="text-xs uppercase tracking-[0.25em] text-gray-400 mb-2">
                     Liquidity Locked
                   </p>
-                  <p className="text-2xl font-semibold text-white">1,592,420 PPA</p>
+                  <p className="text-2xl font-semibold text-white">$70,000,000 Locked</p>
                   <p className="text-sm text-gray-500">
                     Updated hourly from Supabase vault stats.
                   </p>
