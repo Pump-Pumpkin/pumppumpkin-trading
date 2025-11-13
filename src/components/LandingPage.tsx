@@ -228,8 +228,8 @@ const LandingPage: React.FC = () => {
                   <p className="text-xs uppercase tracking-[0.3em] text-gray-400">
                     Current Cycle
                   </p>
-                  <p className="text-3xl font-semibold text-blue-300">
-                    28.4% APY
+                <p className="text-3xl font-semibold text-blue-300">
+                    80% of Platform Profits
                   </p>
                 </div>
                 <div className="h-12 w-12 rounded-2xl bg-blue-500/20 border border-blue-500/40 flex items-center justify-center">
