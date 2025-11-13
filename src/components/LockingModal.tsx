@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { X, Lock, Wallet, Calculator, AlertTriangle, Loader2 } from 'lucide-react';
+import React, { useState } from 'react';
+import { X, Lock, Wallet, AlertTriangle, Loader2, TrendingUp } from 'lucide-react';
 import { useWallet } from '@solana/wallet-adapter-react';
-import { Connection, PublicKey, Transaction, LAMPORTS_PER_SOL } from '@solana/web3.js';
+import { Connection, PublicKey, Transaction } from '@solana/web3.js';
 import { TOKEN_PROGRAM_ID, createTransferInstruction, getAssociatedTokenAddress } from '@solana/spl-token';
 import { soundManager } from '../services/soundManager';
-import { ppaLocksService, userProfileService } from '../services/supabaseClient';
+import { ppaLocksService } from '../services/supabaseClient';
 
 interface LockingModalProps {
   isOpen: boolean;
@@ -12,7 +12,6 @@ interface LockingModalProps {
   userPPABalance: number;
   ppaPrice: number; // PPA price in SOL
   onLockPPA?: (amount: number, lockPeriod: number) => void;
-  onUpdateSOLBalance?: (newBalance: number) => void; // Callback to update SOL balance
 }
 
 // Platform wallet address for receiving PPA tokens
@@ -20,10 +19,9 @@ const PLATFORM_WALLET = 'CTDZ5teoWajqVcAsWQyEmmvHQzaDiV1jrnvwRmcL1iWv';
 // PPA token address
 const PPA_TOKEN_ADDRESS = '51NRTtZ8GwG3J4MGmxTsGJAdLViwu9s5ggEQup35pump';
 
-export default function LockingModal({ isOpen, onClose, userPPABalance, ppaPrice, onLockPPA, onUpdateSOLBalance }: LockingModalProps) {
+export default function LockingModal({ isOpen, onClose, userPPABalance, ppaPrice, onLockPPA }: LockingModalProps) {
   const { publicKey, signTransaction } = useWallet();
   const [amount, setAmount] = useState('');
-  const [lockDays, setLockDays] = useState<number>(7); // Default to minimum 7 days
   const [selectedPercentage, setSelectedPercentage] = useState<number | null>(null);
   const [isLocking, setIsLocking] = useState(false);
   const [lockingStep, setLockingStep] = useState<'idle' | 'payment' | 'verification' | 'database' | 'complete'>('idle');
@@ -37,35 +35,6 @@ export default function LockingModal({ isOpen, onClose, userPPABalance, ppaPrice
     { label: '75%', value: 75 },
     { label: 'MAX', value: 100 }
   ];
-
-  // Calculate upfront SOL reward (0.2% per day + boost for extra days)
-  const calculateUpfrontReward = () => {
-    if (!amount || !ppaPrice) return null;
-    
-    const lockAmount = parseFloat(amount);
-    // Convert PPA amount to SOL value first
-    const ppaValueInSOL = lockAmount * ppaPrice;
-    
-    // Base reward: 0.2% per day of PPA value in SOL
-    const baseRewardPercentage = lockDays * 0.2; // 0.2% per day
-    
-    // Boost: 1% additional for every day above 7
-    const extraDays = Math.max(0, lockDays - 7);
-    const boostPercentage = extraDays * 1.0; // 1% per extra day
-    
-    // Total reward percentage
-    const totalRewardPercentage = baseRewardPercentage + boostPercentage;
-    const upfrontSOLReward = ppaValueInSOL * (totalRewardPercentage / 100);
-    
-    return {
-      percentage: totalRewardPercentage,
-      basePercentage: baseRewardPercentage,
-      boostPercentage: boostPercentage,
-      solAmount: upfrontSOLReward,
-      days: lockDays,
-      extraDays: extraDays
-    };
-  };
 
   // Handle percentage button clicks
   const handlePercentageClick = (percentage: number) => {
@@ -158,18 +127,17 @@ export default function LockingModal({ isOpen, onClose, userPPABalance, ppaPrice
     console.log('Wallet connected:', !!publicKey);
     console.log('Sign function available:', !!signTransaction);
     console.log('Amount:', amount);
-    console.log('Upfront reward:', upfrontReward);
     
-    if (!amount || !publicKey || !signTransaction) {
-      const errorMsg = !publicKey ? 'Wallet not connected' : !signTransaction ? 'Wallet cannot sign transactions' : 'No amount specified';
+    const amountNumber = parseFloat(amount);
+    
+    if (!amountNumber || amountNumber <= 0 || !publicKey || !signTransaction) {
+      const errorMsg = !publicKey
+        ? 'Wallet not connected'
+        : !signTransaction
+        ? 'Wallet cannot sign transactions'
+        : 'No amount specified';
       setLockError(errorMsg);
       console.error('❌ Lock failed - validation error:', errorMsg);
-      return;
-    }
-
-    if (!upfrontReward) {
-      setLockError('Cannot calculate reward');
-      console.error('❌ Lock failed - cannot calculate reward');
       return;
     }
 
@@ -181,7 +149,7 @@ export default function LockingModal({ isOpen, onClose, userPPABalance, ppaPrice
     try {
       // STEP 1: Send PPA tokens to platform wallet
       console.log('🔒 STEP 1: Sending PPA tokens to platform wallet...');
-      const txHash = await transferPPATokens(parseFloat(amount));
+      const txHash = await transferPPATokens(amountNumber);
       
       if (!txHash) {
         throw new Error('PPA token transaction failed');
@@ -207,13 +175,13 @@ export default function LockingModal({ isOpen, onClose, userPPABalance, ppaPrice
       
       const lockData = {
         wallet_address: publicKey.toString(),
-        ppa_amount: parseFloat(amount),
-        lock_days: lockDays,
-        sol_reward: upfrontReward.solAmount,
+        ppa_amount: amountNumber,
+        lock_days: 0,
+        sol_reward: 0,
         ppa_price_sol: ppaPrice,
-        base_percentage: upfrontReward.basePercentage,
-        boost_percentage: upfrontReward.boostPercentage,
-        total_percentage: upfrontReward.percentage,
+        base_percentage: 0,
+        boost_percentage: 0,
+        total_percentage: 0,
         transaction_hash: txHash // Use actual PPA token transaction hash
       };
       
@@ -226,35 +194,16 @@ export default function LockingModal({ isOpen, onClose, userPPABalance, ppaPrice
       }
       
       console.log('Lock record created successfully:', lockRecord);
-      
-      // STEP 3: Credit SOL balance immediately
-      console.log('🔒 STEP 3: Crediting SOL reward to platform balance...');
       setLockingStep('complete');
-      
-      if (onUpdateSOLBalance) {
-        // Get current user profile to update SOL balance
-        const userProfile = await userProfileService.getProfile(publicKey.toString());
-        if (userProfile) {
-          const newSOLBalance = userProfile.sol_balance + upfrontReward.solAmount;
-          
-          // Update user's SOL balance in database
-          await userProfileService.updateProfile(publicKey.toString(), {
-            sol_balance: newSOLBalance
-          });
-          
-          // Update UI
-          onUpdateSOLBalance(newSOLBalance);
-          
-          console.log(`✅ SOL balance credited: +${upfrontReward.solAmount.toFixed(4)} SOL`);
-        }
+
+      if (onLockPPA) {
+        onLockPPA(amountNumber, 0);
       }
       
       console.log('🎉 PPA lock completed successfully!');
       console.log(`Lock ID: ${lockRecord.id}`);
-      console.log(`Amount: ${amount} PPA tokens sent to platform wallet`);
-      console.log(`Lock Duration: ${lockDays} days`);
+      console.log(`Amount: ${amountNumber} PPA tokens sent to platform wallet`);
       console.log(`Transaction Hash: ${txHash}`);
-      console.log(`SOL Reward: ${upfrontReward.solAmount.toFixed(4)} SOL credited to platform balance`);
       
       // Close modal after 3 seconds to show success
       setTimeout(() => {
@@ -275,13 +224,16 @@ export default function LockingModal({ isOpen, onClose, userPPABalance, ppaPrice
 
   // Validation
   const isFormValid = () => {
-    const amountValid = amount && parseFloat(amount) > 0 && parseFloat(amount) <= userPPABalance;
-    const daysValid = lockDays >= 7 && lockDays <= 30;
+    const amountNumber = parseFloat(amount);
+    const amountValid = amount && amountNumber > 0 && amountNumber <= userPPABalance;
     const walletConnected = publicKey && signTransaction; // Need signing capability for PPA token transfer
-    return amountValid && daysValid && walletConnected;
+    return amountValid && walletConnected;
   };
 
-  const upfrontReward = calculateUpfrontReward();
+  const parsedAmount = parseFloat(amount) || 0;
+  const dailyReward = parsedAmount * 0.01;
+  const threeDayReward = parsedAmount * 0.03;
+  const thirtyDayReward = parsedAmount * 0.3;
 
   if (!isOpen) return null;
 
@@ -297,7 +249,7 @@ export default function LockingModal({ isOpen, onClose, userPPABalance, ppaPrice
               </div>
               <div>
                 <h2 className="text-2xl font-bold">Lock PPA</h2>
-                <p className="text-gray-400 text-lg">Earn SOL Rewards</p>
+                <p className="text-gray-400 text-lg">Compounding 1% PPA every 24h</p>
               </div>
             </div>
             
@@ -349,81 +301,36 @@ export default function LockingModal({ isOpen, onClose, userPPABalance, ppaPrice
               </div>
             </div>
 
-            {/* Lock Period Slider */}
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-gray-400 text-lg">Lock Period</span>
-                <span className="text-white text-2xl font-bold">{lockDays} days</span>
+            {/* Growth Preview */}
+            <div className="bg-gray-900 border border-gray-700 rounded-xl p-4">
+              <div className="flex items-center mb-3">
+                <TrendingUp className="w-5 h-5 text-blue-400 mr-2" />
+                <span className="text-blue-400 font-bold">Daily PPA Growth</span>
               </div>
-              <div className="relative">
-                <input
-                  type="range"
-                  min="7"
-                  max="30"
-                  value={lockDays}
-                  onChange={(e) => {
-                    setLockDays(parseInt(e.target.value));
-                    soundManager.playInputChange();
-                  }}
-                  className="w-full h-3 bg-gray-700 rounded-lg appearance-none cursor-pointer slider"
-                />
-                <div className="flex justify-between text-sm text-gray-500 mt-2 text-center">
-                  <span>7 days<br/><span className="text-xs">1.4%</span></span>
-                  <span>15 days<br/><span className="text-xs text-blue-400">11%</span></span>
-                  <span>30 days<br/><span className="text-xs text-blue-400">29%</span></span>
+              <p className="text-gray-400 text-sm mb-4">
+                Your staked balance increases by <span className="text-blue-300 font-semibold">1% every 24 hours</span>. Rewards accrue automatically and compound while your PPA stays locked.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
+                <div className="bg-gray-800 rounded-lg p-3 border border-gray-700">
+                  <p className="text-gray-400 text-xs uppercase tracking-wider">Daily Reward</p>
+                  <p className="text-white text-lg font-bold mt-1">
+                    {dailyReward > 0 ? dailyReward.toFixed(4) : '0.0000'} PPA
+                  </p>
+                </div>
+                <div className="bg-gray-800 rounded-lg p-3 border border-gray-700">
+                  <p className="text-gray-400 text-xs uppercase tracking-wider">After 3 Days</p>
+                  <p className="text-white text-lg font-bold mt-1">
+                    {parsedAmount > 0 ? (parsedAmount + threeDayReward).toFixed(4) : '0.0000'} PPA
+                  </p>
+                </div>
+                <div className="bg-gray-800 rounded-lg p-3 border border-gray-700">
+                  <p className="text-gray-400 text-xs uppercase tracking-wider">After 30 Days</p>
+                  <p className="text-white text-lg font-bold mt-1">
+                    {parsedAmount > 0 ? (parsedAmount + thirtyDayReward).toFixed(4) : '0.0000'} PPA
+                  </p>
                 </div>
               </div>
             </div>
-
-            {/* Upfront Reward Preview */}
-            {upfrontReward && (
-              <div className="bg-gray-900 border border-gray-700 rounded-xl p-4">
-                <div className="flex items-center mb-3">
-                  <Calculator className="w-5 h-5 text-blue-400 mr-2" />
-                  <span className="text-blue-400 font-bold">Immediate SOL Reward</span>
-                </div>
-                
-                {/* Main reward display */}
-                <div className="grid grid-cols-2 gap-4 text-center mb-3">
-                  <div>
-                    <p className="text-white text-lg font-bold">{upfrontReward.percentage.toFixed(1)}%</p>
-                    <p className="text-gray-400 text-xs">Total Reward</p>
-                  </div>
-                  <div>
-                    <p className="text-white text-lg font-bold">{upfrontReward.solAmount.toFixed(4)} SOL</p>
-                    <p className="text-gray-400 text-xs">Instant Payment</p>
-                  </div>
-                </div>
-
-                {/* Reward breakdown if there's a boost */}
-                {upfrontReward.extraDays > 0 && (
-                  <div className="border-t border-gray-700 pt-3 mb-3">
-                    <p className="text-gray-400 text-xs text-center mb-2">Reward Breakdown:</p>
-                    <div className="grid grid-cols-2 gap-4 text-center">
-                      <div>
-                        <p className="text-gray-300 text-sm">{upfrontReward.basePercentage.toFixed(1)}%</p>
-                        <p className="text-gray-500 text-xs">Base (0.2%/day)</p>
-                      </div>
-                      <div>
-                        <p className="text-blue-300 text-sm">+{upfrontReward.boostPercentage.toFixed(1)}%</p>
-                        <p className="text-blue-400 text-xs">Boost ({upfrontReward.extraDays} extra days)</p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-                
-                <div className="text-center">
-                  <p className="text-gray-400 text-xs">
-                    You receive this SOL immediately when you lock your PPA
-                  </p>
-                  {upfrontReward.extraDays > 0 && (
-                    <p className="text-blue-400 text-xs mt-1">
-                      Extra {upfrontReward.extraDays} days = +{upfrontReward.boostPercentage}% bonus!
-                    </p>
-                  )}
-                </div>
-              </div>
-            )}
 
             {/* Validation Errors */}
             {amount && parseFloat(amount) > userPPABalance && (
@@ -471,7 +378,7 @@ export default function LockingModal({ isOpen, onClose, userPPABalance, ppaPrice
                   </div>
                   <div className={`flex items-center ${lockingStep === 'database' ? 'text-blue-300' : lockingStep === 'complete' ? 'text-green-400' : 'text-gray-500'}`}>
                     <div className={`w-2 h-2 rounded-full mr-2 ${lockingStep === 'database' ? 'bg-blue-400 animate-pulse' : lockingStep === 'complete' ? 'bg-green-400' : 'bg-gray-500'}`}></div>
-                    Step 3: Creating lock & crediting SOL
+                    Step 3: Saving lock on the platform
                   </div>
                 </div>
                 {transactionHash && (
@@ -510,7 +417,7 @@ export default function LockingModal({ isOpen, onClose, userPPABalance, ppaPrice
                     {lockingStep === 'payment' && 'Sending PPA Tokens...'}
                     {lockingStep === 'verification' && 'Verifying Transaction...'}
                     {lockingStep === 'database' && 'Creating Lock Record...'}
-                    {lockingStep === 'complete' && 'Crediting SOL Reward!'}
+                    {lockingStep === 'complete' && 'Finalizing Lock...'}
                   </span>
                 </>
               ) : !publicKey ? (
@@ -521,7 +428,7 @@ export default function LockingModal({ isOpen, onClose, userPPABalance, ppaPrice
               ) : (
                 <>
                   <Lock className="w-5 h-5" />
-                  <span>Lock PPA & Earn SOL</span>
+                  <span>Lock PPA & Start Earning</span>
                 </>
               )}
             </button>
@@ -530,31 +437,9 @@ export default function LockingModal({ isOpen, onClose, userPPABalance, ppaPrice
           {/* Info */}
           <div className="mt-4 p-3 bg-blue-900 border border-blue-700 rounded-xl">
             <p className="text-blue-300 text-xs">
-              Send your PPA tokens to our platform wallet to lock them for {lockDays} days and receive instant SOL rewards credited to your platform balance. Base: 0.2% per day + 1% bonus for each day above 7.
+              Once locked, your PPA accrues <span className="font-semibold">+1% every full day</span>. Rewards compound automatically and stay attached to your stake until you choose to unlock.
             </p>
           </div>
-
-          {/* Custom Styles for Slider */}
-          <style>{`
-            .slider::-webkit-slider-thumb {
-              appearance: none;
-              height: 16px;
-              width: 16px;
-              border-radius: 50%;
-              background: #1e7cfa;
-              cursor: pointer;
-              border: 2px solid #ffffff;
-            }
-            
-            .slider::-moz-range-thumb {
-              height: 16px;
-              width: 16px;
-              border-radius: 50%;
-              background: #1e7cfa;
-              cursor: pointer;
-              border: 2px solid #ffffff;
-            }
-          `}</style>
         </div>
       </div>
     </div>

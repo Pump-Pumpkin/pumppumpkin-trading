@@ -97,9 +97,73 @@ import ShareGainsPopup from "./ShareGainsPopup";
 import { soundManager } from "../services/soundManager";
 import { hapticFeedback } from "../utils/animations";
 
-
 import LivePrice from "./LivePrice";
 import About from "./About";
+
+const MS_PER_DAY = 1000 * 60 * 60 * 24;
+
+type LockGrowthMetrics = {
+  daysElapsed: number;
+  bonusAmount: number;
+  currentAmount: number;
+  bonusPercent: number;
+};
+
+const calculatePPALockGrowth = (
+  lock: PPALock,
+  referenceDate: Date = new Date()
+): LockGrowthMetrics => {
+  const baseAmount = Number(lock.ppa_amount) || 0;
+  if (!lock.locked_at || baseAmount <= 0) {
+    return {
+      daysElapsed: 0,
+      bonusAmount: 0,
+      currentAmount: baseAmount,
+      bonusPercent: 0,
+    };
+  }
+
+  const lockedAtMs = new Date(lock.locked_at).getTime();
+  if (Number.isNaN(lockedAtMs)) {
+    return {
+      daysElapsed: 0,
+      bonusAmount: 0,
+      currentAmount: baseAmount,
+      bonusPercent: 0,
+    };
+  }
+
+  let accrualEndMs = referenceDate.getTime();
+  if (lock.status !== "active" && lock.updated_at) {
+    const updatedMs = new Date(lock.updated_at).getTime();
+    if (!Number.isNaN(updatedMs)) {
+      accrualEndMs = Math.max(updatedMs, lockedAtMs);
+    }
+  }
+
+  const elapsedMs = Math.max(0, accrualEndMs - lockedAtMs);
+  const daysElapsed = Math.floor(elapsedMs / MS_PER_DAY);
+
+  if (daysElapsed <= 0) {
+    return {
+      daysElapsed: 0,
+      bonusAmount: 0,
+      currentAmount: baseAmount,
+      bonusPercent: 0,
+    };
+  }
+
+  const bonusAmount = baseAmount * 0.01 * daysElapsed;
+  const currentAmount = baseAmount + bonusAmount;
+  const bonusPercent = baseAmount > 0 ? (bonusAmount / baseAmount) * 100 : 0;
+
+  return {
+    daysElapsed,
+    bonusAmount,
+    currentAmount,
+    bonusPercent,
+  };
+};
 
 interface DashboardProps {
   username: string;
@@ -256,7 +320,7 @@ export default function Dashboard({
   const [realPPAPriceInSOL, setRealPPAPriceInSOL] = useState<number>(0.0001);
 
   // Lifetime PPA Lock Earnings
-  const [lifetimeSOLEarnings, setLifetimeSOLEarnings] = useState<number>(0);
+  const [lifetimePPARewards, setLifetimePPARewards] = useState<number>(0);
   const [isLoadingEarnings, setIsLoadingEarnings] = useState(false);
 
   // Active PPA Locks
@@ -874,21 +938,21 @@ export default function Dashboard({
     }
   };
 
-  // Load lifetime SOL earnings from PPA locks
+  // Load lifetime PPA rewards from locks
   const loadLifetimeEarnings = async () => {
     if (!walletAddress) return;
 
     setIsLoadingEarnings(true);
     try {
-      console.log("💰 Loading lifetime PPA lock earnings...");
-      const totalSOLEarned = await ppaLocksService.getLifetimeEarnings(
+      console.log("💰 Loading lifetime PPA rewards...");
+      const totalPPARewards = await ppaLocksService.getLifetimeEarnings(
         walletAddress
       );
-      setLifetimeSOLEarnings(totalSOLEarned);
-      console.log(`✅ Lifetime earnings loaded: ${totalSOLEarned} SOL`);
+      setLifetimePPARewards(totalPPARewards);
+      console.log(`✅ Lifetime rewards loaded: ${totalPPARewards} PPA`);
     } catch (error) {
-      console.error("Failed to load lifetime earnings:", error);
-      setLifetimeSOLEarnings(0);
+      console.error("Failed to load lifetime rewards:", error);
+      setLifetimePPARewards(0);
     } finally {
       setIsLoadingEarnings(false);
     }
@@ -903,11 +967,12 @@ export default function Dashboard({
       const locks = await ppaLocksService.getActiveLocksByWallet(walletAddress);
       setActivePPALocks(locks);
 
-      // Calculate total PPA locked
-      const totalLocked = locks.reduce(
-        (total, lock) => total + (lock.ppa_amount || 0),
-        0
-      );
+      // Calculate total PPA locked including accrued rewards
+      const now = new Date();
+      const totalLocked = locks.reduce((total, lock) => {
+        const { currentAmount } = calculatePPALockGrowth(lock, now);
+        return total + currentAmount;
+      }, 0);
       setTotalPPALocked(totalLocked);
 
       console.log(
@@ -920,50 +985,68 @@ export default function Dashboard({
     }
   };
 
-  // Calculate countdown for latest lock
+  // Update lock growth status and totals
   const updateCountdown = () => {
     if (activePPALocks.length === 0) {
       setLatestLockCountdown("");
       setExpiredLock(null);
+      setTotalPPALocked(0);
       return;
     }
 
-    // Get the latest lock (most recent)
-    const latestLock = activePPALocks.sort(
-      (a, b) =>
-        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-    )[0];
+    const now = new Date();
 
-    if (!latestLock.unlocks_at) {
+    const locksWithMetrics = activePPALocks
+      .map((lock) => {
+        const metrics = calculatePPALockGrowth(lock, now);
+        return { lock, metrics };
+      })
+      .sort(
+        (a, b) =>
+          new Date(b.lock.created_at).getTime() -
+          new Date(a.lock.created_at).getTime()
+      );
+
+    const totalCurrent = locksWithMetrics.reduce(
+      (sum, entry) => sum + entry.metrics.currentAmount,
+      0
+    );
+    setTotalPPALocked(totalCurrent);
+
+    const latest = locksWithMetrics[0];
+    if (!latest) {
       setLatestLockCountdown("");
       setExpiredLock(null);
       return;
     }
 
-    const now = new Date().getTime();
-    const unlockTime = new Date(latestLock.unlocks_at).getTime();
-    const timeLeft = unlockTime - now;
+    const { lock, metrics } = latest;
 
-    if (timeLeft <= 0) {
-      setLatestLockCountdown("Ready to unlock");
-      setExpiredLock(latestLock);
-      return;
-    }
-
-    const days = Math.floor(timeLeft / (1000 * 60 * 60 * 24));
-    const hours = Math.floor(
-      (timeLeft % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)
-    );
-
-    setExpiredLock(null);
-    if (days > 0) {
-      setLatestLockCountdown(
-        `${days} day${days !== 1 ? "s" : ""} ${hours}h remaining`
-      );
+    if (metrics.daysElapsed <= 0) {
+      setLatestLockCountdown("Compounding +1% PPA every 24h");
     } else {
-      const minutes = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
-      setLatestLockCountdown(`${hours}h ${minutes}m remaining`);
+      const percentText = metrics.bonusPercent.toFixed(2);
+      setLatestLockCountdown(
+        `Staked ${metrics.daysElapsed} day${
+          metrics.daysElapsed === 1 ? "" : "s"
+        } (+${percentText}% PPA)`
+      );
     }
+
+    const enrichedLock = {
+      ...lock,
+      computedCurrentAmount: metrics.currentAmount,
+      computedBonusAmount: metrics.bonusAmount,
+      computedDaysElapsed: metrics.daysElapsed,
+      computedBonusPercent: metrics.bonusPercent,
+    } as PPALock & {
+      computedCurrentAmount: number;
+      computedBonusAmount: number;
+      computedDaysElapsed: number;
+      computedBonusPercent: number;
+    };
+
+    setExpiredLock(enrichedLock);
   };
 
   // Handle unlock button click
@@ -1010,44 +1093,35 @@ export default function Dashboard({
   // Calculate unlock tooltip text
   const getUnlockTooltipText = () => {
     if (expiredLock) {
-      return "Your PPA tokens are ready to unlock! Click to request unlock.";
+      const enriched = expiredLock as PPALock & {
+        computedBonusAmount?: number;
+        computedCurrentAmount?: number;
+        computedDaysElapsed?: number;
+        computedBonusPercent?: number;
+      };
+
+      const baseAmount = Number(expiredLock.ppa_amount) || 0;
+      const bonusAmount =
+        enriched.computedBonusAmount ??
+        calculatePPALockGrowth(expiredLock).bonusAmount;
+      const percentageGain =
+        enriched.computedBonusPercent ??
+        (baseAmount > 0 ? (bonusAmount / baseAmount) * 100 : 0);
+
+      if (percentageGain <= 0) {
+        return "Unlock anytime. Rewards begin compounding as soon as you lock.";
+      }
+
+      return `Unlock anytime. Currently +${percentageGain.toFixed(
+        2
+      )}% (${formatTokenAmount(bonusAmount)} PPA) earned on this stake.`;
     }
 
     if (activePPALocks.length === 0) {
       return "No PPA tokens locked. Lock some tokens first to earn PPA rewards.";
     }
 
-    // Get the latest lock (most recent)
-    const latestLock = activePPALocks.sort(
-      (a, b) =>
-        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-    )[0];
-
-    if (!latestLock.unlocks_at) {
-      return "Lock information unavailable.";
-    }
-
-    const now = new Date().getTime();
-    const unlockTime = new Date(latestLock.unlocks_at).getTime();
-    const timeLeft = unlockTime - now;
-
-    if (timeLeft <= 0) {
-      return "Your PPA tokens are ready to unlock!";
-    }
-
-    const days = Math.floor(timeLeft / (1000 * 60 * 60 * 24));
-    const hours = Math.floor(
-      (timeLeft % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)
-    );
-
-    if (days > 0) {
-      return `You can press this button to unlock in ${days} day${
-        days !== 1 ? "s" : ""
-      } ${hours}h`;
-    } else {
-      const minutes = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
-      return `You can press this button to unlock in ${hours}h ${minutes}m`;
-    }
+    return "Unlock anytime. Rewards keep compounding until you request an unlock.";
   };
 
   const loadSOLPrice = async () => {
@@ -3016,7 +3090,7 @@ export default function Dashboard({
 
             {/* Lifetime Rewards - Smaller */}
             <p className="text-gray-400 text-xs mb-1">
-              Lifetime PPA Lock Earnings
+              Lifetime PPA Rewards Accrued
             </p>
             {isLoadingEarnings ? (
               <div className="flex items-center justify-center mb-3">
@@ -3026,10 +3100,12 @@ export default function Dashboard({
             ) : (
               <>
                 <p className="text-lg font-bold text-white">
-                  {lifetimeSOLEarnings.toFixed(4)} SOL
+                  {lifetimePPARewards.toFixed(4)} PPA
                 </p>
                 <p className="text-gray-400 text-xs mb-3">
-                  {formatCurrency(lifetimeSOLEarnings * solPrice)}
+                  {ppaPrice
+                    ? `${(lifetimePPARewards * ppaPrice).toFixed(4)} SOL equivalent`
+                    : "SOL value updating..."}
                 </p>
               </>
             )}
@@ -3055,9 +3131,9 @@ export default function Dashboard({
                   <p className="text-sm font-bold text-white">
                     {isLoadingEarnings
                       ? "Loading..."
-                      : formatCurrency(lifetimeSOLEarnings * solPrice)}
+                      : `${formatTokenAmount(lifetimePPARewards)} PPA`}
                   </p>
-                  <p className="text-gray-500 text-xs">Lock Earnings</p>
+                  <p className="text-gray-500 text-xs">Rewards Earned</p>
                 </div>
                 <div className="text-center">
                   <p className="text-sm font-bold text-white">
@@ -3165,7 +3241,7 @@ export default function Dashboard({
                   >
                     <Unlock className="w-4 h-4" />
                     <span>
-                      {expiredLock ? "Unlock PPA" : "No Unlocks Available"}
+                      {expiredLock ? "Unlock Stake" : "No Stake Available"}
                     </span>
                   </button>
 

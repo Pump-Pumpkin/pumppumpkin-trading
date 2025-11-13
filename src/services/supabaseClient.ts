@@ -638,7 +638,7 @@ export class PPALocksService {
     try {
       console.log('🔒 Creating PPA lock record:', data.wallet_address);
       
-      // Calculate unlock date
+      // Calculate lock timestamps
       const lockedAt = new Date();
       const unlocksAt = new Date(lockedAt.getTime() + (data.lock_days * 24 * 60 * 60 * 1000));
       
@@ -732,7 +732,7 @@ export class PPALocksService {
       
       const { data: locks, error } = await supabase
         .from('ppa_locks')
-        .select('sol_reward')
+        .select('ppa_amount, locked_at, updated_at, status')
         .eq('wallet_address', walletAddress);
 
       if (error) {
@@ -744,11 +744,41 @@ export class PPALocksService {
         return 0;
       }
 
-      // Sum all SOL rewards from all locks
-      const totalSOLEarned = locks.reduce((total, lock) => total + (lock.sol_reward || 0), 0);
+      const now = Date.now();
+      const msPerDay = 1000 * 60 * 60 * 24;
+
+      const totalPPARewards = locks.reduce((total, lock) => {
+        const baseAmount = Number(lock.ppa_amount) || 0;
+        if (!lock.locked_at || baseAmount <= 0) {
+          return total;
+        }
+
+        const lockedAtMs = new Date(lock.locked_at).getTime();
+        if (Number.isNaN(lockedAtMs)) {
+          return total;
+        }
+
+        let accrualEndMs = now;
+        if (lock.status !== 'active' && lock.updated_at) {
+          const updatedMs = new Date(lock.updated_at).getTime();
+          if (!Number.isNaN(updatedMs)) {
+            accrualEndMs = Math.max(updatedMs, lockedAtMs);
+          }
+        }
+
+        const elapsedMs = Math.max(0, accrualEndMs - lockedAtMs);
+        const daysElapsed = Math.floor(elapsedMs / msPerDay);
+
+        if (daysElapsed <= 0) {
+          return total;
+        }
+
+        const rewardAmount = baseAmount * 0.01 * daysElapsed;
+        return total + rewardAmount;
+      }, 0);
       
-      console.log(`✅ Lifetime PPA lock earnings: ${totalSOLEarned} SOL`);
-      return totalSOLEarned;
+      console.log(`✅ Lifetime PPA rewards accrued: ${totalPPARewards} PPA`);
+      return totalPPARewards;
     } catch (error) {
       console.error('💥 Error in getLifetimeEarnings:', error);
       return 0;

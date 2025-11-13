@@ -4,6 +4,60 @@ import { soundManager } from '../services/soundManager';
 import { formatTokenAmount, formatCurrency } from '../utils/formatters';
 import { ppaLocksService } from '../services/supabaseClient';
 
+const MS_PER_DAY = 1000 * 60 * 60 * 24;
+
+const calculateLockMetrics = (lock: any) => {
+  const baseAmount = Number(lock?.ppa_amount) || 0;
+  if (!lock?.locked_at || baseAmount <= 0) {
+    return {
+      baseAmount,
+      currentAmount: baseAmount,
+      bonusAmount: 0,
+      daysElapsed: 0,
+    };
+  }
+
+  const lockedAtMs = new Date(lock.locked_at).getTime();
+  if (Number.isNaN(lockedAtMs)) {
+    return {
+      baseAmount,
+      currentAmount: baseAmount,
+      bonusAmount: 0,
+      daysElapsed: 0,
+    };
+  }
+
+  let accrualEndMs = Date.now();
+  if (lock.status !== 'active' && lock.updated_at) {
+    const updatedMs = new Date(lock.updated_at).getTime();
+    if (!Number.isNaN(updatedMs)) {
+      accrualEndMs = Math.max(updatedMs, lockedAtMs);
+    }
+  }
+
+  const elapsedMs = Math.max(0, accrualEndMs - lockedAtMs);
+  const daysElapsed = Math.floor(elapsedMs / MS_PER_DAY);
+
+  if (daysElapsed <= 0) {
+    return {
+      baseAmount,
+      currentAmount: baseAmount,
+      bonusAmount: 0,
+      daysElapsed: 0,
+    };
+  }
+
+  const bonusAmount = baseAmount * 0.01 * daysElapsed;
+  const currentAmount = baseAmount + bonusAmount;
+
+  return {
+    baseAmount,
+    currentAmount,
+    bonusAmount,
+    daysElapsed,
+  };
+};
+
 interface UnlockModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -19,6 +73,35 @@ export default function UnlockModal({ isOpen, onClose, expiredLock, solPrice, on
 
   if (!isOpen || !expiredLock) return null;
 
+  const enrichedLock = expiredLock as {
+    computedBonusAmount?: number;
+    computedCurrentAmount?: number;
+    computedDaysElapsed?: number;
+  };
+
+  const calculatedMetrics = calculateLockMetrics(expiredLock);
+
+  const baseAmount = calculatedMetrics.baseAmount;
+  const bonusAmount =
+    typeof enrichedLock.computedBonusAmount === "number"
+      ? enrichedLock.computedBonusAmount
+      : calculatedMetrics.bonusAmount;
+  const currentAmount =
+    typeof enrichedLock.computedCurrentAmount === "number"
+      ? enrichedLock.computedCurrentAmount
+      : calculatedMetrics.currentAmount;
+  const daysElapsed =
+    typeof enrichedLock.computedDaysElapsed === "number"
+      ? enrichedLock.computedDaysElapsed
+      : calculatedMetrics.daysElapsed;
+
+  const bonusPercent =
+    baseAmount > 0 ? (bonusAmount / baseAmount) * 100 : 0;
+  const currentValueSOL = solPrice ? currentAmount * solPrice : 0;
+  const lockedDate = expiredLock.locked_at
+    ? new Date(expiredLock.locked_at)
+    : null;
+
   const handleUnlockRequest = async () => {
     setIsSubmitting(true);
     setSubmitError(null);
@@ -31,7 +114,7 @@ export default function UnlockModal({ isOpen, onClose, expiredLock, solPrice, on
       const unlockRequest = await ppaLocksService.createUnlockRequest({
         wallet_address: expiredLock.wallet_address,
         lock_id: expiredLock.id,
-        ppa_amount: expiredLock.ppa_amount
+        ppa_amount: currentAmount
       });
 
       if (!unlockRequest) {
@@ -67,13 +150,6 @@ export default function UnlockModal({ isOpen, onClose, expiredLock, solPrice, on
       soundManager.playClick();
     }
   };
-
-  // Calculate values
-  const ppaAmount = expiredLock.ppa_amount || 0;
-  const lockDays = expiredLock.lock_days || 0;
-  const solRewardEarned = expiredLock.sol_reward || 0;
-  const lockedDate = new Date(expiredLock.locked_at);
-  const unlockDate = new Date(expiredLock.unlocks_at);
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
@@ -128,25 +204,54 @@ export default function UnlockModal({ isOpen, onClose, expiredLock, solPrice, on
                 </h3>
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
-                    <span className="text-gray-400">PPA Amount:</span>
-                    <span className="text-white font-bold">{formatTokenAmount(ppaAmount)} PPA</span>
+                    <span className="text-gray-400">Initial Stake:</span>
+                    <span className="text-white font-bold">
+                      {formatTokenAmount(baseAmount)} PPA
+                    </span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-400">Lock Period:</span>
-                    <span className="text-white">{lockDays} days</span>
+                    <span className="text-gray-400">Current Balance:</span>
+                    <span className="text-blue-300 font-bold">
+                      {formatTokenAmount(currentAmount)} PPA
+                    </span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-400">Locked Date:</span>
-                    <span className="text-white">{lockedDate.toLocaleDateString()}</span>
+                    <span className="text-gray-400">Rewards Earned:</span>
+                    <span className="text-green-400 font-bold">
+                      {formatTokenAmount(bonusAmount)} PPA
+                      {bonusPercent > 0
+                        ? ` (+${bonusPercent.toFixed(2)}%)`
+                        : ""}
+                    </span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-400">Unlock Date:</span>
-                    <span className="text-white">{unlockDate.toLocaleDateString()}</span>
+                    <span className="text-gray-400">Days Staked:</span>
+                    <span className="text-white">
+                      {daysElapsed} day{daysElapsed === 1 ? "" : "s"}
+                    </span>
                   </div>
+                  {lockedDate && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Locked Since:</span>
+                      <span className="text-white">
+                        {lockedDate.toLocaleDateString()}
+                      </span>
+                    </div>
+                  )}
                   <div className="flex justify-between pt-2 border-t border-gray-600">
-                    <span className="text-gray-400">SOL Earned:</span>
-                    <span className="text-green-400 font-bold">{solRewardEarned.toFixed(4)} SOL</span>
+                    <span className="text-gray-400">Current Value (SOL):</span>
+                    <span className="text-gray-200 font-semibold">
+                      {solPrice
+                        ? `${currentValueSOL.toFixed(4)} SOL`
+                        : "Updating..."}
+                    </span>
                   </div>
+                  {solPrice && (
+                    <div className="flex justify-between text-xs text-gray-500">
+                      <span>USD Value:</span>
+                      <span>{formatCurrency(currentValueSOL * solPrice)}</span>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -214,4 +319,4 @@ export default function UnlockModal({ isOpen, onClose, expiredLock, solPrice, on
       </div>
     </div>
   );
-} 
+}
