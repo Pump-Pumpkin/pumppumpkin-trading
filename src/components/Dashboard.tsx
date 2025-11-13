@@ -1909,16 +1909,16 @@ export default function Dashboard({
         label: string;
       }> = [
         {
-          url: "https://rpc.ankr.com/solana",
-          label: "Ankr public RPC",
+          url: "https://rpc.solana.publicnode.com",
+          label: "PublicNode RPC",
         },
         {
-          url: "https://solana-mainnet.rpcfast.com",
-          label: "RPCFast public RPC",
+          url: "https://solana-mainnet.public.blastapi.io",
+          label: "BlastAPI public RPC",
         },
         {
-          url: "https://solana-mainnet.phantom.tech/",
-          label: "Phantom public RPC",
+          url: "https://solana-api.projectserum.com",
+          label: "ProjectSerum public RPC",
         },
       ];
 
@@ -2009,7 +2009,7 @@ export default function Dashboard({
 
     try {
       // Check if user has enough SOL
-      const connection = new Connection("https://rpc.ankr.com/solana", {
+      const connection = new Connection("https://rpc.solana.publicnode.com", {
         commitment: "confirmed",
       });
 

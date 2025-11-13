@@ -89,7 +89,7 @@ export default function LockingModal({ isOpen, onClose, userPPABalance, ppaPrice
 
     try {
       // Create connection
-      const connection = new Connection('https://rpc.ankr.com/solana', {
+      const connection = new Connection('https://rpc.solana.publicnode.com', {
         commitment: 'confirmed',
       });
 

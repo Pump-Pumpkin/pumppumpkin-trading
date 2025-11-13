@@ -20,7 +20,7 @@ interface Props {
 export const WalletContextProvider: FC<Props> = ({ children }) => {
     // Use public RPC for compatibility in the browser
     const endpoint = useMemo(
-        () => 'https://rpc.ankr.com/solana',
+        () => 'https://rpc.solana.publicnode.com',
         []
     );
 

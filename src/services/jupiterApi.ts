@@ -29,7 +29,7 @@ export class JupiterSwapService {
   private connection: Connection;
 
   constructor() {
-    this.connection = new Connection('https://rpc.ankr.com/solana', {
+    this.connection = new Connection('https://rpc.solana.publicnode.com', {
       commitment: 'confirmed',
       confirmTransactionInitialTimeout: 60000,
     });
