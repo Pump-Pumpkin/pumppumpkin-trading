@@ -40,7 +40,7 @@ const features = [
 
 const metrics = [
   { label: "Supported Wallets", value: "12+" },
-  { label: "Leverage Available", value: "Up to 5x" },
+  { label: "Leverage Available", value: "Up to 100x" },
   { label: "Rewards Distributed", value: "1,200+ SOL" },
   { label: "Trending Tokens Indexed", value: "50,000+" },
 ];
