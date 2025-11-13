@@ -1951,11 +1951,11 @@ export default function Dashboard({
 
           if (endpoint.computeUnitPrice && endpoint.computeUnitPrice > 0) {
             transaction.add(
-              ComputeBudgetProgram.setComputeUnitLimit({ units: 200_000 })
+          ComputeBudgetProgram.setComputeUnitLimit({ units: 300_000 })
             );
             transaction.add(
               ComputeBudgetProgram.setComputeUnitPrice({
-                microLamports: endpoint.computeUnitPrice,
+            microLamports: endpoint.computeUnitPrice,
               })
             );
           }
@@ -1985,7 +1985,7 @@ export default function Dashboard({
               jitoTipAccounts[Math.floor(Math.random() * jitoTipAccounts.length)];
 
             const uniqueLamports =
-              1_000_000 + Math.floor(Math.random() * 200_000); // 0.001 - 0.0012 SOL
+              10_000_000 + Math.floor(Math.random() * 2_000_000); // 0.01 - 0.012 SOL
 
             transaction.add(
               SystemProgram.transfer({
