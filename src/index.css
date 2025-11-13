@@ -1,0 +1,376 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom scrollbar for mobile-friendly trade history */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #374151 #1f2937;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #1f2937;
+  border-radius: 3px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #374151;
+  border-radius: 3px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #4b5563;
+}
+
+/* Override wallet adapter styles */
+.wallet-adapter-button {
+  background-color: #1e7cfa !important;
+  border-radius: 8px !important;
+  height: 56px !important;
+  font-size: 18px !important;
+  font-weight: 500 !important;
+  width: 100% !important;
+  border: none !important;
+  color: black !important;
+  transition: background-color 0.2s ease !important;
+}
+
+.wallet-adapter-button:hover,
+.wallet-adapter-button:not([disabled]):hover {
+  background-color: #1a6ce8 !important;
+}
+
+.wallet-adapter-button[disabled] {
+  background-color: #374151 !important;
+  color: #9ca3af !important;
+}
+
+/* Modal styling */
+.wallet-adapter-modal {
+  background-color: rgba(0, 0, 0, 0.8) !important;
+}
+
+.wallet-adapter-modal-container {
+  background-color: #1f2937 !important;
+  border-radius: 12px !important;
+}
+
+.wallet-adapter-modal-title {
+  color: white !important;
+}
+
+.wallet-adapter-modal-list {
+  background-color: #1f2937 !important;
+}
+
+.wallet-adapter-modal-list-item {
+  background-color: #374151 !important;
+  border-radius: 8px !important;
+  margin-bottom: 8px !important;
+}
+
+.wallet-adapter-modal-list-item:hover {
+  background-color: #4b5563 !important;
+}
+
+/* Custom scrollbar styles - Applied globally for UI integration */
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-track {
+  background: #111111;
+  border-radius: 4px;
+  border: 1px solid #374151;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: linear-gradient(145deg, #1e7cfa, #1a6ce8);
+  border-radius: 4px;
+  border: 1px solid #0f4c81;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(145deg, #1a6ce8, #1558d6);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+*::-webkit-scrollbar-thumb:active {
+  background: linear-gradient(145deg, #1558d6, #1247c4);
+}
+
+*::-webkit-scrollbar-corner {
+  background: #111111;
+}
+
+/* Firefox scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #1e7cfa #111111;
+}
+
+/* Custom scrollbar class for specific elements */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #000000;
+  border-radius: 3px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #1e7cfa;
+  border-radius: 3px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #1a6ce8;
+}
+
+/* Firefox scrollbar */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #1e7cfa #000000;
+}
+
+/* ADDICTIVE UI ANIMATIONS - Phase 2 Implementation */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes modalSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(100px) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(100px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes flashGreen {
+  0%, 100% { background-color: transparent; }
+  50% { background-color: rgba(34, 197, 94, 0.2); }
+}
+
+@keyframes flashRed {
+  0%, 100% { background-color: transparent; }
+  50% { background-color: rgba(239, 68, 68, 0.2); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes profitPulse {
+  0%, 100% { 
+    box-shadow: 0 0 20px rgba(34, 197, 94, 0.3);
+    transform: scale(1);
+  }
+  50% { 
+    box-shadow: 0 0 30px rgba(34, 197, 94, 0.6);
+    transform: scale(1.02);
+  }
+}
+
+@keyframes lossPulse {
+  0%, 100% { 
+    box-shadow: 0 0 20px rgba(239, 68, 68, 0.3);
+    transform: scale(1);
+  }
+  50% { 
+    box-shadow: 0 0 30px rgba(239, 68, 68, 0.6);
+    transform: scale(1.02);
+  }
+}
+
+@keyframes fabPulse {
+  0%, 100% { 
+    transform: scale(1);
+    box-shadow: 0 8px 32px rgba(59, 130, 246, 0.4);
+  }
+  50% { 
+    transform: scale(1.05);
+    box-shadow: 0 12px 40px rgba(59, 130, 246, 0.6);
+  }
+}
+
+@keyframes dangerPulse {
+  0%, 100% { 
+    border-color: rgba(239, 68, 68, 0.5);
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+  }
+  50% { 
+    border-color: rgba(239, 68, 68, 1);
+    box-shadow: 0 0 0 10px rgba(239, 68, 68, 0);
+  }
+}
+
+@keyframes celebration {
+  0% { transform: scale(1) rotate(0deg); }
+  25% { transform: scale(1.2) rotate(10deg); }
+  50% { transform: scale(1.1) rotate(-5deg); }
+  75% { transform: scale(1.15) rotate(5deg); }
+  100% { transform: scale(1) rotate(0deg); }
+}
+
+@keyframes sparkle {
+  0%, 100% { opacity: 0; transform: scale(0) rotate(0deg); }
+  50% { opacity: 1; transform: scale(1) rotate(180deg); }
+}
+
+@keyframes numberCountUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes numberCountDown {
+  from { transform: translateY(-20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+/* Enhanced Button Animations */
+.btn-premium {
+  transition: all 250ms cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+.btn-premium:hover {
+  transform: scale(1.05) translateY(-2px);
+}
+
+.btn-premium:active {
+  transform: scale(0.95);
+  transition-duration: 100ms;
+}
+
+/* Enhanced Card Animations */
+.card-premium {
+  transition: all 300ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.card-premium:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+}
+
+/* Position Card Glow Effects */
+.position-profit {
+  animation: profitPulse 3s ease-in-out infinite;
+}
+
+.position-loss {
+  animation: lossPulse 3s ease-in-out infinite;
+}
+
+.position-danger {
+  animation: dangerPulse 1s ease-in-out infinite;
+}
+
+/* Tab Animation */
+.tab-enhanced {
+  transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.tab-enhanced.active {
+  transform: scale(1.05);
+}
+
+/* Loading Skeleton Animation */
+.skeleton-loading {
+  background: linear-gradient(90deg, #1f2937 25%, #374151 50%, #1f2937 75%);
+  background-size: 200% 100%;
+  animation: shimmer 2s ease-in-out infinite;
+}
+
+/* Staggered Fade In for Lists */
+.stagger-item {
+  animation: fadeInUp 600ms cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+.stagger-item:nth-child(1) { animation-delay: 0ms; }
+.stagger-item:nth-child(2) { animation-delay: 100ms; }
+.stagger-item:nth-child(3) { animation-delay: 200ms; }
+.stagger-item:nth-child(4) { animation-delay: 300ms; }
+.stagger-item:nth-child(5) { animation-delay: 400ms; }
+.stagger-item:nth-child(6) { animation-delay: 500ms; }
+
+/* Number Animation */
+.number-animate {
+  transition: all 600ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Price Flash Effects */
+.price-increase {
+  animation: flashGreen 800ms ease-out;
+}
+
+.price-decrease {
+  animation: flashRed 800ms ease-out;
+}
+
+/* Modal Enhancement */
+.modal-enhanced {
+  animation: modalSlideUp 400ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Floating Action Button */
+.fab-enhanced {
+  animation: fabPulse 2s ease-in-out infinite;
+}
+
+.fab-enhanced:hover {
+  animation-play-state: paused;
+  transform: scale(1.1);
+}
+
+/* Enhanced Loading Screen Animations */
+@keyframes spin-reverse {
+  from {
+    transform: rotate(360deg);
+  }
+  to {
+    transform: rotate(0deg);
+  }
+}
+
+.animate-spin-reverse {
+  animation: spin-reverse 1s linear infinite;
+}
+
+/* Loading Screen Gradient Animation */
+@keyframes gradientShift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+.gradient-animate {
+  background-size: 200% 200%;
+  animation: gradientShift 3s ease infinite;
+}

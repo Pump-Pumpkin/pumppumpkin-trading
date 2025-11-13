@@ -1,0 +1,11 @@
+{
+  "name": "netlify-functions",
+  "version": "1.0.0",
+  "description": "Serverless functions for deposit verification",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.50.2",
+    "@solana/web3.js": "^1.87.6"
+  }
+}
+
+
