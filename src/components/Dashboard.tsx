@@ -1907,51 +1907,34 @@ export default function Dashboard({
     }
 
     try {
-      // Create connection
+      // Use public Solana RPC for deposits (no tip requirement)
       const connection = new Connection(
-        "https://solitary-methodical-resonance.solana-mainnet.quiknode.pro/75cfc57db8a6530f4f781550e81c834f7f96cf61/",
+        "https://api.mainnet-beta.solana.com",
         {
           commitment: "confirmed",
         }
       );
 
       // Get recent blockhash
-      const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
+      const { blockhash } = await connection.getLatestBlockhash();
 
-      console.log("📝 Creating transaction with Jito tip...");
+      console.log("📝 Creating simple transfer transaction...");
 
-      // Jito tip accounts (random selection for load balancing)
-      const jitoTipAccounts = [
-        'Cw8CFyM9FkoMi7K7Crf6HNQqf4uEMzpKw6QNghXLvLkY',
-        'DttWaMuVvTiduZRnguLF7jNxTgiMBZ1hyAumKUiL2KRL',
-        '96gYZGLnJYVFmbjzopPSU6QiEV5fGqZNyN9nmNhvrZU5',
-      ];
-      const randomTipAccount = jitoTipAccounts[Math.floor(Math.random() * jitoTipAccounts.length)];
-      const tipLamports = 10_000; // 0.00001 SOL tip
+      // Create simple legacy transaction (no tips needed)
+      const transaction = new Transaction();
+      transaction.recentBlockhash = blockhash;
+      transaction.feePayer = publicKey;
+      
+      // Add transfer instruction
+      transaction.add(
+        SystemProgram.transfer({
+          fromPubkey: publicKey,
+          toPubkey: new PublicKey(PLATFORM_WALLET),
+          lamports: Math.floor(amount * LAMPORTS_PER_SOL),
+        })
+      );
 
-      // Create versioned transaction with Jito tip
-      const messageV0 = new TransactionMessage({
-        payerKey: publicKey,
-        recentBlockhash: blockhash,
-        instructions: [
-          ComputeBudgetProgram.setComputeUnitLimit({ units: 200_000 }),
-          ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 100_000 }),
-          SystemProgram.transfer({
-            fromPubkey: publicKey,
-            toPubkey: new PublicKey(PLATFORM_WALLET),
-            lamports: Math.floor(amount * LAMPORTS_PER_SOL),
-          }),
-          SystemProgram.transfer({
-            fromPubkey: publicKey,
-            toPubkey: new PublicKey(randomTipAccount),
-            lamports: tipLamports,
-          }),
-        ],
-      }).compileToV0Message();
-
-      const transaction = new VersionedTransaction(messageV0);
-
-      console.log("📝 Transaction created with Jito tip, requesting signature...");
+      console.log("📝 Transaction created, requesting signature...");
 
       // Sign transaction
       const signedTransaction = await signTransaction(transaction);
@@ -1962,7 +1945,7 @@ export default function Dashboard({
       const txid = await connection.sendRawTransaction(
         signedTransaction.serialize(),
         {
-          skipPreflight: true,
+          skipPreflight: false,
           maxRetries: 3,
         }
       );
@@ -1972,12 +1955,11 @@ export default function Dashboard({
       // Show verification loading screen
       setIsVerifyingTransaction(true);
 
-      // Confirm transaction with block height
-      const confirmation = await connection.confirmTransaction({
-        signature: txid,
-        blockhash,
-        lastValidBlockHeight,
-      });
+      // Confirm transaction
+      const confirmation = await connection.confirmTransaction(
+        txid,
+        "confirmed"
+      );
 
       if (confirmation.value.err) {
         throw new Error(`Transaction failed: ${confirmation.value.err}`);
