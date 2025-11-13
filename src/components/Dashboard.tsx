@@ -1925,6 +1925,7 @@ export default function Dashboard({
         payerKey: publicKey,
         recentBlockhash: blockhash,
         instructions: [
+          ComputeBudgetProgram.setComputeUnitLimit({ units: 200_000 }),
           ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 100_000 }),
           SystemProgram.transfer({
             fromPubkey: publicKey,
