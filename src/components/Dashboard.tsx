@@ -1907,9 +1907,9 @@ export default function Dashboard({
     }
 
     try {
-      // Use public Solana RPC for deposits (no tip requirement)
+      // Use your QuickNode RPC for deposits
       const connection = new Connection(
-        "https://api.mainnet-beta.solana.com",
+        "https://solitary-methodical-resonance.solana-mainnet.quiknode.pro/75cfc57db8a6530f4f781550e81c834f7f96cf61/",
         {
           commitment: "confirmed",
         }
