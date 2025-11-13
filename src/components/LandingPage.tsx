@@ -68,7 +68,7 @@ const LandingPage: React.FC = () => {
               <p className="text-sm uppercase tracking-[0.3em] text-blue-300">
                 Pump Pumpkin
               </p>
-              <p className="text-lg font-semibold">Memecoin Pro Desk</p>
+              <p className="text-lg font-semibold">Memecoin Trading Terminal</p>
             </div>
           </div>
 
