@@ -1915,12 +1915,21 @@ export default function Dashboard({
         }
       );
 
-      // Get recent blockhash and block height
+      // Get recent blockhash
       const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
 
-      console.log("📝 Creating versioned transaction with priority fee...");
+      console.log("📝 Creating transaction with Jito tip...");
 
-      // Create versioned transaction with priority fee (v0 format)
+      // Jito tip accounts (random selection for load balancing)
+      const jitoTipAccounts = [
+        'Cw8CFyM9FkoMi7K7Crf6HNQqf4uEMzpKw6QNghXLvLkY',
+        'DttWaMuVvTiduZRnguLF7jNxTgiMBZ1hyAumKUiL2KRL',
+        '96gYZGLnJYVFmbjzopPSU6QiEV5fGqZNyN9nmNhvrZU5',
+      ];
+      const randomTipAccount = jitoTipAccounts[Math.floor(Math.random() * jitoTipAccounts.length)];
+      const tipLamports = 10_000; // 0.00001 SOL tip
+
+      // Create versioned transaction with Jito tip
       const messageV0 = new TransactionMessage({
         payerKey: publicKey,
         recentBlockhash: blockhash,
@@ -1932,19 +1941,24 @@ export default function Dashboard({
             toPubkey: new PublicKey(PLATFORM_WALLET),
             lamports: Math.floor(amount * LAMPORTS_PER_SOL),
           }),
+          SystemProgram.transfer({
+            fromPubkey: publicKey,
+            toPubkey: new PublicKey(randomTipAccount),
+            lamports: tipLamports,
+          }),
         ],
       }).compileToV0Message();
 
       const transaction = new VersionedTransaction(messageV0);
 
-      console.log("📝 Transaction created, requesting signature...");
+      console.log("📝 Transaction created with Jito tip, requesting signature...");
 
       // Sign transaction
       const signedTransaction = await signTransaction(transaction);
 
       console.log("Sending transaction to network...");
 
-      // Send transaction (skip preflight to bypass simulation error)
+      // Send transaction
       const txid = await connection.sendRawTransaction(
         signedTransaction.serialize(),
         {
