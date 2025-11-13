@@ -89,7 +89,7 @@ export default function LockingModal({ isOpen, onClose, userPPABalance, ppaPrice
 
     try {
       // Create connection
-      const connection = new Connection('https://solitary-methodical-resonance.solana-mainnet.quiknode.pro/75cfc57db8a6530f4f781550e81c834f7f96cf61/', {
+      const connection = new Connection('https://rpc.ankr.com/solana', {
         commitment: 'confirmed',
       });
 
