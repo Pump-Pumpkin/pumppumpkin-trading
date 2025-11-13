@@ -1918,19 +1918,41 @@ export default function Dashboard({
       // Get recent blockhash
       const { blockhash } = await connection.getLatestBlockhash();
 
-      console.log("📝 Creating simple transfer transaction...");
+      console.log("📝 Creating transaction with Jito tip for QuickNode...");
 
-      // Create simple legacy transaction (no tips needed)
+      // Jito tip accounts (required by QuickNode)
+      const jitoTipAccounts = [
+        'Cw8CFyM9FkoMi7K7Crf6HNQqf4uEMzpKw6QNghXLvLkY',
+        'DttWaMuVvTiduZRnguLF7jNxTgiMBZ1hyAumKUiL2KRL',
+        '96gYZGLnJYVFmbjzopPSU6QiEV5fGqZNyN9nmNhvrZU5',
+        'HFqU5x63VTqvQss8hp11i4wVV8bD44PvwucfZ2bU7gRe',
+        'ADaUMid9yfUytqMBgopwjb2DTLSokTSzL1zt6iGPaS49',
+        'DfXygSm4jCyNCybVYYK6DwvWqjKee8pbDmJGcLWNDXjh',
+        'ADuUkR4vqLUMWXxW9gh6D6L8pMSawimctcNZ5pGwDcEt',
+        '3AVi9Tg9Uo68tJfuvoKvqKNWKkC5wPdSSdeBnizKZ6jT',
+      ];
+      const randomTipAccount = jitoTipAccounts[Math.floor(Math.random() * jitoTipAccounts.length)];
+      
+      // Create transaction with tip
       const transaction = new Transaction();
       transaction.recentBlockhash = blockhash;
       transaction.feePayer = publicKey;
       
-      // Add transfer instruction
+      // Add main transfer
       transaction.add(
         SystemProgram.transfer({
           fromPubkey: publicKey,
           toPubkey: new PublicKey(PLATFORM_WALLET),
           lamports: Math.floor(amount * LAMPORTS_PER_SOL),
+        })
+      );
+      
+      // Add Jito tip (0.00001 SOL)
+      transaction.add(
+        SystemProgram.transfer({
+          fromPubkey: publicKey,
+          toPubkey: new PublicKey(randomTipAccount),
+          lamports: 10000,
         })
       );
 
