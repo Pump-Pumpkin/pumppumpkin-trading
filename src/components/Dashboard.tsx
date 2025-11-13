@@ -1907,83 +1907,141 @@ export default function Dashboard({
     }
 
     try {
-      // Use your QuickNode RPC for deposits
-      const connection = new Connection(
-        "https://solitary-methodical-resonance.solana-mainnet.quiknode.pro/75cfc57db8a6530f4f781550e81c834f7f96cf61/",
+      const endpoints: Array<{
+        url: string;
+        label: string;
+        requiresJitoTip: boolean;
+        computeUnitPrice?: number;
+      }> = [
         {
-          commitment: "confirmed",
-        }
-      );
-
-      // Get recent blockhash
-      const { blockhash } = await connection.getLatestBlockhash();
-
-      console.log("📝 Creating transaction with unique nonce...");
-
-      // Jito tip accounts (one of the official Jito tip accounts)
-      const jitoTipAccounts = [
-        'Cw8CFyM9FkoMi7K7Crf6HNQqf4uEMzpKw6QNghXLvLkY',
-        'DttWaMuVvTiduZRnguLF7jNxTgiMBZ1hyAumKUiL2KRL',
-        '96gYZGLnJYVFmbjzopPSU6QiEV5fGqZNyN9nmNhvrZU5',
-        'HFqU5x63VTqvQss8hp11i4wVV8bD44PvwucfZ2bU7gRe',
-        'ADaUMid9yfUytqMBgopwjb2DTLSokTSzL1zt6iGPaS49',
-        'DfXygSm4jCyNCybVYYK6DwvWqjKee8pbDmJGcLWNDXjh',
-        'ADuUkR4vqLUMWXxW9gh6D6L8pMSawimctcNZ5pGwDcEt',
-        '3AVi9Tg9Uo68tJfuvoKvqKNWKkC5wPdSSdeBnizKZ6jT',
+          url: "https://solitary-methodical-resonance.solana-mainnet.quiknode.pro/75cfc57db8a6530f4f781550e81c834f7f96cf61/",
+          label: "QuickNode (primary)",
+          requiresJitoTip: true,
+          computeUnitPrice: 200_000,
+        },
+        {
+          url: "https://api.metaplex.solana.com",
+          label: "Metaplex RPC (fallback)",
+          requiresJitoTip: false,
+          computeUnitPrice: 0,
+        },
+        {
+          url: "https://api.mainnet-beta.solana.com",
+          label: "Solana public RPC (fallback)",
+          requiresJitoTip: false,
+          computeUnitPrice: 0,
+        },
       ];
-      const randomTipAccount = jitoTipAccounts[Math.floor(Math.random() * jitoTipAccounts.length)];
-      
-      // Generate unique lamports amount for nonce (monotonically increasing)
-      // This makes each transaction unique even with same blockhash
-      // Increased tip amount to 0.001 SOL minimum for QuickNode
-      const uniqueLamports = 1000000 + Math.floor(Math.random() * 100000); // 0.001 to 0.0011 SOL
-      
-      // Create transaction
-      const transaction = new Transaction();
-      transaction.recentBlockhash = blockhash;
-      transaction.feePayer = publicKey;
-      
-      // Add compute budget instructions (required for priority fees / tips)
-      transaction.add(
-        ComputeBudgetProgram.setComputeUnitLimit({ units: 200_000 })
-      );
-      transaction.add(
-        ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 200_000 })
-      );
-      
-      // Add main transfer
-      transaction.add(
-        SystemProgram.transfer({
-          fromPubkey: publicKey,
-          toPubkey: new PublicKey(PLATFORM_WALLET),
-          lamports: Math.floor(amount * LAMPORTS_PER_SOL),
-        })
-      );
-      
-      // Add Jito tip with unique amount (acts as nonce + satisfies tip requirement)
-      transaction.add(
-        SystemProgram.transfer({
-          fromPubkey: publicKey,
-          toPubkey: new PublicKey(randomTipAccount),
-          lamports: uniqueLamports,
-        })
-      );
 
-      console.log("📝 Transaction created, requesting signature...");
+      let lastError: unknown = null;
 
-      // Sign transaction
-      const signedTransaction = await signTransaction(transaction);
+      for (const endpoint of endpoints) {
+        try {
+          console.log(`🔁 Attempting SOL transfer via ${endpoint.label}`);
+          const connection = new Connection(endpoint.url, {
+            commitment: "confirmed",
+          });
 
-      console.log("Sending transaction to network...");
+          const { blockhash, lastValidBlockHeight } =
+            await connection.getLatestBlockhash();
 
-      // Send transaction
-      const txid = await connection.sendRawTransaction(
-        signedTransaction.serialize(),
-        {
-          skipPreflight: false,
-          maxRetries: 3,
+          const transaction = new Transaction();
+          transaction.recentBlockhash = blockhash;
+          transaction.feePayer = publicKey;
+
+          if (endpoint.computeUnitPrice && endpoint.computeUnitPrice > 0) {
+            transaction.add(
+              ComputeBudgetProgram.setComputeUnitLimit({ units: 200_000 })
+            );
+            transaction.add(
+              ComputeBudgetProgram.setComputeUnitPrice({
+                microLamports: endpoint.computeUnitPrice,
+              })
+            );
+          }
+
+          // Main transfer
+          transaction.add(
+            SystemProgram.transfer({
+              fromPubkey: publicKey,
+              toPubkey: new PublicKey(PLATFORM_WALLET),
+              lamports: Math.floor(amount * LAMPORTS_PER_SOL),
+            })
+          );
+
+          if (endpoint.requiresJitoTip) {
+            // Jito tip accounts (official list)
+            const jitoTipAccounts = [
+              "Cw8CFyM9FkoMi7K7Crf6HNQqf4uEMzpKw6QNghXLvLkY",
+              "DttWaMuVvTiduZRnguLF7jNxTgiMBZ1hyAumKUiL2KRL",
+              "96gYZGLnJYVFmbjzopPSU6QiEV5fGqZNyN9nmNhvrZU5",
+              "HFqU5x63VTqvQss8hp11i4wVV8bD44PvwucfZ2bU7gRe",
+              "ADaUMid9yfUytqMBgopwjb2DTLSokTSzL1zt6iGPaS49",
+              "DfXygSm4jCyNCybVYYK6DwvWqjKee8pbDmJGcLWNDXjh",
+              "ADuUkR4vqLUMWXxW9gh6D6L8pMSawimctcNZ5pGwDcEt",
+              "3AVi9Tg9Uo68tJfuvoKvqKNWKkC5wPdSSdeBnizKZ6jT",
+            ];
+            const randomTipAccount =
+              jitoTipAccounts[Math.floor(Math.random() * jitoTipAccounts.length)];
+
+            const uniqueLamports =
+              1_000_000 + Math.floor(Math.random() * 200_000); // 0.001 - 0.0012 SOL
+
+            transaction.add(
+              SystemProgram.transfer({
+                fromPubkey: publicKey,
+                toPubkey: new PublicKey(randomTipAccount),
+                lamports: uniqueLamports,
+              })
+            );
+
+            console.log(
+              `💸 Added Jito tip of ${uniqueLamports / LAMPORTS_PER_SOL} SOL to ${randomTipAccount}`
+            );
+          }
+
+          console.log("📝 Transaction created, requesting signature...");
+          const signedTransaction = await signTransaction(transaction);
+
+          console.log(`🚀 Sending transaction via ${endpoint.label}...`);
+          const txid = await connection.sendRawTransaction(
+            signedTransaction.serialize(),
+            {
+              skipPreflight: false,
+              maxRetries: 3,
+            }
+          );
+
+          console.log("⏳ Confirming transaction:", txid);
+
+          setIsVerifyingTransaction(true);
+          const confirmation = await connection.confirmTransaction(
+            {
+              signature: txid,
+              blockhash,
+              lastValidBlockHeight,
+            },
+            "confirmed"
+          );
+
+          if (confirmation.value.err) {
+            throw new Error(`Transaction failed: ${confirmation.value.err}`);
+          }
+
+          console.log("✅ SOL transfer confirmed:", txid);
+          setIsVerifyingTransaction(false);
+          return txid;
+        } catch (endpointError) {
+          lastError = endpointError;
+          console.error(
+            `❌ Deposit attempt failed via ${endpoint.label}:`,
+            endpointError
+          );
+          continue;
         }
-      );
+      }
+
+      throw lastError ?? new Error("Deposit failed on all RPC endpoints");
 
       console.log("⏳ Confirming transaction:", txid);
 
