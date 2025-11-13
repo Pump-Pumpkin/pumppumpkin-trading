@@ -3037,12 +3037,10 @@ export default function Dashboard({
             {/* PPA Info - Compact */}
             <div className="bg-gray-900 border border-gray-700 rounded-lg p-4 mb-4">
               <h3 className="text-sm font-bold text-white mb-3">
-                Lock your PPA earnings and get rewards each month for providing liquidity to the platform
+                Lock your PPA earnings and earn monthly rewards for providing liquidity to the platform.
               </h3>
               <p className="text-gray-400 text-xs mb-3">
-                Lock your PPA tokens for 7-30 days and receive SOL rewards
-                upfront immediately. Start trading with your SOL rewards right
-                away while your PPA earns more over time.
+                Commit your PPA and earn monthly PPA rewards from 80% of platform profits. Your PPA works while you trade, fueling the liquidity loop.
               </p>
 
               {/* PPA Stats - Compact */}
