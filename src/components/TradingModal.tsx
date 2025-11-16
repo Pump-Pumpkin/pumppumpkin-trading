@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import {
   formatPrice,
+  formatVolume,
   fetchSOLPrice,
   fetchTokenDetailCached,
   TokenDetailData,
@@ -1001,13 +1002,76 @@ export default function TradingModal({
 					</div>
 					{/* Left: Dynamic Birdeye Chart */}
 					<div className={`rounded-xl overflow-hidden bg-gray-900 border border-gray-800 md:col-span-8 col-span-1 ${mobileTab === "chart" ? "block" : "hidden"} md:block`}>
-						<iframe
-							title={`Chart-${tokenData.symbol}`}
-							src={`https://birdeye.so/tv-widget/${tokenData.address}?chain=solana&theme=dark`}
-							className="w-full h-[360px] md:h-[80vh]"
-							frameBorder="0"
-							allowFullScreen
-						/>
+						{/* Token summary card */}
+						<div className="p-5 border-b border-gray-800 bg-gradient-to-r from-gray-900 via-gray-900 to-gray-800">
+							<div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+								<div className="flex items-center gap-4">
+									<div className="w-14 h-14 rounded-xl overflow-hidden bg-black/40 border border-gray-800 flex items-center justify-center">
+										{tokenData.logoURI ? (
+											<img
+												src={tokenData.logoURI}
+												alt={tokenData.symbol}
+												className="w-full h-full object-cover"
+												onError={(e) => {
+													const target = e.currentTarget;
+													target.style.display = "none";
+													const fallback = target.nextElementSibling as HTMLElement;
+													if (fallback) {
+														fallback.style.display = "flex";
+													}
+												}}
+											/>
+										) : null}
+										<div
+											className={`w-full h-full bg-gray-800 flex items-center justify-center ${tokenData.logoURI ? "hidden" : "flex"}`}
+										>
+											<span className="text-white text-lg font-semibold">
+												{(tokenData.symbol || "?").charAt(0)}
+											</span>
+										</div>
+									</div>
+									<div className="space-y-1">
+										<div className="flex flex-wrap items-center gap-2">
+											<h3 className="text-xl font-semibold">{tokenData.symbol}</h3>
+											{tokenData.name ? (
+												<span className="text-gray-400 text-sm">{tokenData.name}</span>
+											) : null}
+										</div>
+										<p className="text-gray-500 text-xs uppercase tracking-[0.3em]">
+											Ticker
+										</p>
+									</div>
+								</div>
+								<div className="grid grid-cols-2 gap-4 sm:gap-8 text-center sm:text-left">
+									<div>
+										<p className="text-gray-500 text-xs uppercase tracking-wide mb-1">
+											Price
+										</p>
+										<p className="text-white text-lg font-semibold">
+											{formatPrice(livePrice)}
+										</p>
+									</div>
+									<div>
+										<p className="text-gray-500 text-xs uppercase tracking-wide mb-1">
+											24h Volume
+										</p>
+										<p className="text-white text-lg font-semibold">
+											{formatVolume(tokenData.volume24h ?? 0)}
+										</p>
+									</div>
+								</div>
+							</div>
+						</div>
+
+						<div className="relative">
+							<iframe
+								title={`Chart-${tokenData.symbol}`}
+								src={`https://birdeye.so/tv-widget/${tokenData.address}?chain=solana&theme=dark`}
+								className="w-full h-[360px] md:h-[80vh]"
+								frameBorder="0"
+								allowFullScreen
+							/>
+						</div>
 					</div>
 					{/* Right: Existing trade UI */}
 					<div className={`md:col-span-4 col-span-1 pr-1 md:max-h-[80vh] max-h-[70dvh] overflow-y-auto ${mobileTab === "trade" ? "block" : "hidden"} md:block`}>
