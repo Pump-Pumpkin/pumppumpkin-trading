@@ -71,10 +71,26 @@
   background-color: #374151 !important;
   border-radius: 8px !important;
   margin-bottom: 8px !important;
+  display: flex !important;
+  align-items: center !important;
 }
 
 .wallet-adapter-modal-list-item:hover {
   background-color: #4b5563 !important;
+}
+
+.wallet-adapter-modal-list-item-name {
+  flex: 1;
+  text-align: left;
+}
+
+.wallet-adapter-modal-list-item-badge {
+  font-size: 12px;
+  font-weight: 600;
+  color: #1e7cfa;
+  background: rgba(30, 124, 250, 0.18);
+  padding: 4px 10px;
+  border-radius: 9999px;
 }
 
 /* Custom scrollbar styles - Applied globally for UI integration */

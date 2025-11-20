@@ -10,6 +10,6 @@ VITE_JUPITER_API_KEY=e045a69d-9bb9-4a38-a2d4-b56b7f757848
 
 # Server-only variables (for Netlify Functions - NOT exposed to browser)
 SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxnbmxyeWhrYWdvbGxsbXNsaW95Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2Mjc5OTQwNSwiZXhwIjoyMDc4Mzc1NDA1fQ.41lXVEUH-Xws4xK-463OVGOJPAxL1_3QYA8r14poN9w
-SOLANA_RPC_URL=https://rpc.solana.publicnode.com
+SOLANA_RPC_URL=https://solitary-methodical-resonance.solana-mainnet.quiknode.pro/75cfc57db8a6530f4f781550e81c834f7f96cf61/
 PLATFORM_WALLET=CTDZ5teoWajqVcAsWQyEmmvHQzaDiV1jrnvwRmcL1iWv
 

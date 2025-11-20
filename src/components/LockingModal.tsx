@@ -58,7 +58,7 @@ export default function LockingModal({ isOpen, onClose, userPPABalance, ppaPrice
 
     try {
       // Create connection
-      const connection = new Connection('https://rpc.solana.publicnode.com', {
+      const connection = new Connection('https://api.mainnet-beta.solana.com', {
         commitment: 'confirmed',
       });
 

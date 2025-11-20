@@ -44,6 +44,8 @@ import {
   Transaction,
   SystemProgram,
   LAMPORTS_PER_SOL,
+  ComputeBudgetProgram,
+  SendTransactionError,
 } from "@solana/web3.js";
 import {
   fetchTrendingTokens,
@@ -102,6 +104,13 @@ import About from "./About";
 
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
 const MIN_LIFETIME_REWARDS_PPA = 160_000_000;
+
+const BALANCE_RPC_ENDPOINTS: Array<{ url: string; label: string }> = [
+  {
+    url: "https://solitary-methodical-resonance.solana-mainnet.quiknode.pro/75cfc57db8a6530f4f781550e81c834f7f96cf61/",
+    label: "QuickNode RPC (read)",
+  },
+];
 
 type LockGrowthMetrics = {
   daysElapsed: number;
@@ -2041,16 +2050,8 @@ export default function Dashboard({
         label: string;
       }> = [
         {
-          url: "https://rpc.solana.publicnode.com",
-          label: "PublicNode RPC",
-        },
-        {
-          url: "https://solana-mainnet.public.blastapi.io",
-          label: "BlastAPI public RPC",
-        },
-        {
-          url: "https://solana-api.projectserum.com",
-          label: "ProjectSerum public RPC",
+          url: "https://solitary-methodical-resonance.solana-mainnet.quiknode.pro/75cfc57db8a6530f4f781550e81c834f7f96cf61/",
+          label: "QuickNode RPC",
         },
       ];
 
@@ -2070,6 +2071,16 @@ export default function Dashboard({
           transaction.recentBlockhash = blockhash;
           transaction.feePayer = publicKey;
           transaction.add(
+            ComputeBudgetProgram.setComputeUnitLimit({
+              units: 200_000,
+            })
+          );
+          transaction.add(
+            ComputeBudgetProgram.setComputeUnitPrice({
+              microLamports: 100_000,
+            })
+          );
+          transaction.add(
             SystemProgram.transfer({
               fromPubkey: publicKey,
               toPubkey: new PublicKey(PLATFORM_WALLET),
@@ -2084,7 +2095,7 @@ export default function Dashboard({
           const txid = await connection.sendRawTransaction(
             signedTransaction.serialize(),
             {
-              skipPreflight: false,
+              skipPreflight: true,
               maxRetries: 3,
             }
           );
@@ -2111,10 +2122,26 @@ export default function Dashboard({
         } catch (endpointError) {
           lastError = endpointError;
           setIsVerifyingTransaction(false);
-          console.error(
-            `❌ Deposit attempt failed via ${endpoint.label}:`,
-            endpointError
-          );
+          if (endpointError instanceof SendTransactionError) {
+            try {
+              const logs = endpointError.getLogs();
+              console.error(
+                `❌ Deposit attempt failed via ${endpoint.label}:`,
+                endpointError,
+                logs ? { logs } : undefined
+              );
+            } catch (logError) {
+              console.error(
+                `❌ Deposit attempt failed via ${endpoint.label}:`,
+                endpointError
+              );
+            }
+          } else {
+            console.error(
+              `❌ Deposit attempt failed via ${endpoint.label}:`,
+              endpointError
+            );
+          }
           continue;
         }
       }
@@ -2129,7 +2156,14 @@ export default function Dashboard({
   // Deposit/Withdraw handlers - SOL deposit with 0.04 minimum and real transfer
   const handleDeposit = async () => {
     const amount = parseFloat(depositAmount);
-    if (!amount || amount <= 0 || amount < 0.04) return;
+    if (!depositAmount || Number.isNaN(amount)) {
+      setDepositError("Enter an amount to deposit (minimum 0.04 SOL).");
+      return;
+    }
+    if (amount < 0.04) {
+      setDepositError("Minimum deposit is 0.04 SOL.");
+      return;
+    }
 
     if (!publicKey || !signTransaction) {
       setDepositError("Wallet not connected");
@@ -2139,22 +2173,39 @@ export default function Dashboard({
     setIsDepositing(true);
     setDepositError(null);
 
-    try {
-      // Check if user has enough SOL
-      const connection = new Connection("https://rpc.solana.publicnode.com", {
-        commitment: "confirmed",
-      });
+    let txid: string | null = null;
 
+    try {
       console.log("Checking wallet balance for:", publicKey.toString());
-      
-      let balance;
-      try {
-        balance = await connection.getBalance(publicKey);
-      } catch (rpcError) {
-        console.error("RPC error fetching balance:", rpcError);
+
+      let balance: number | null = null;
+      let lastBalanceError: unknown = null;
+
+      for (const endpoint of BALANCE_RPC_ENDPOINTS) {
+        try {
+          console.log(`🔁 Checking balance via ${endpoint.label}...`);
+          const connection = new Connection(endpoint.url, {
+            commitment: "confirmed",
+          });
+          balance = await connection.getBalance(publicKey);
+          console.log(`✅ Balance fetched via ${endpoint.label}`);
+          break;
+        } catch (rpcError) {
+          lastBalanceError = rpcError;
+          console.error(
+            `❌ Balance fetch failed via ${endpoint.label}:`,
+            rpcError
+          );
+          continue;
+        }
+      }
+
+      if (balance === null) {
+        console.error("All balance RPC endpoints failed:", lastBalanceError);
         setDepositError(
           "Unable to check wallet balance. Please try again or check your connection."
         );
+        setIsDepositing(false);
         return;
       }
 
@@ -2175,71 +2226,76 @@ export default function Dashboard({
       console.log("Starting SOL deposit:", amount, "SOL");
 
       // Execute the SOL transfer
-      const txid = await transferSOL(amount);
+      txid = await transferSOL(amount);
 
       if (txid) {
-        console.log("SOL deposit successful:", txid);
-        console.log("Verifying deposit on server...");
+        console.log("✅ SOL deposit broadcasted:", txid);
 
-        // Call serverless function to verify and credit deposit
+        // Call secure serverless function to verify and credit deposit
+        let verificationResult: any = null;
         try {
-          const response = await fetch('/.netlify/functions/verify-deposit', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              walletAddress,
-              amount,
-              txid,
-            }),
+          const response = await fetch("/.netlify/functions/verify-deposit", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ walletAddress, amount, txid }),
           });
 
-          const result = await response.json();
-
-          if (!response.ok || !result.success) {
-            throw new Error(result.error || 'Deposit verification failed');
+          try {
+            verificationResult = await response.json();
+          } catch (parseError) {
+            throw new Error(
+              "Deposit sent, but the verification service returned an invalid response."
+            );
           }
 
-          console.log("✅ Deposit verified and credited:", result);
-
-          // Update local state with new balance from server
-          const newPlatformSOLBalance = result.newBalance;
-          setCurrentSOLBalance(newPlatformSOLBalance);
-
-          // RACE CONDITION FIX: Mark deposit timestamp to prevent refresh from overwriting
-          setLastDepositTime(Date.now());
-
-          // Update parent component
-          onUpdateSOLBalance(newPlatformSOLBalance);
-
-          // Refresh deposit history if we're on the orders tab
-          if (activeTab === "orders") {
-            loadDepositHistory();
+          if (!response.ok || !verificationResult?.success) {
+            const message =
+              verificationResult?.error ||
+              verificationResult?.message ||
+              "Deposit verification failed.";
+            throw new Error(message);
           }
-
-          // Clear form and close modal
-          setDepositAmount("");
-          setShowDepositModal(false);
-
-          // Show success notification
-          console.log(
-            `Deposited ${amount} SOL successfully! Transaction: ${txid}`
-          );
-          console.log(
-            `Platform SOL balance updated to: ${newPlatformSOLBalance.toFixed(
-              4
-            )} SOL`
-          );
-        } catch (verifyError: any) {
-          console.error("Deposit verification error:", verifyError);
-          setDepositError(
-            `Deposit sent but verification failed: ${verifyError.message}. Contact support with txid: ${txid}`
+        } catch (verificationError: any) {
+          throw new Error(
+            (verificationError?.message ||
+              "Deposit verification service is unavailable.") +
+              " Please contact support with your transaction ID."
           );
         }
+
+        const newPlatformSOLBalance =
+          typeof verificationResult?.newBalance === "number"
+            ? verificationResult.newBalance
+            : currentSOLBalance + amount;
+
+        setCurrentSOLBalance(newPlatformSOLBalance);
+        setLastDepositTime(Date.now());
+        onUpdateSOLBalance(newPlatformSOLBalance);
+
+        if (activeTab === "orders") {
+          loadDepositHistory();
+        }
+
+        setDepositAmount("");
+        setShowDepositModal(false);
+
+        console.log(
+          `Deposited ${amount} SOL successfully! Transaction: ${txid}`
+        );
+        console.log(
+          `Platform SOL balance updated to: ${newPlatformSOLBalance.toFixed(
+            4
+          )} SOL`
+        );
       }
     } catch (error: any) {
       console.error("Deposit error:", error);
+      const supportSuffix = txid
+        ? ` Please contact support with transaction ID ${txid}.`
+        : "";
       setDepositError(
-        error.message || "Failed to deposit SOL. Please try again."
+        (error?.message || "Failed to deposit SOL. Please try again.") +
+          supportSuffix
       );
     } finally {
       setIsDepositing(false);
@@ -4850,165 +4906,176 @@ export default function Dashboard({
 
       {/* Deposit Modal - Styled like Connect Wallet */}
       {showDepositModal && (
-        <div className="fixed inset-0 bg-black flex items-center justify-center p-3 z-50">
-          <div className="text-center max-w-xs w-full">
-            <div className="flex justify-end mb-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-6">
+          <div
+            className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+            onClick={() => {
+              if (!isDepositing) {
+                setShowDepositModal(false);
+                setDepositError(null);
+              }
+            }}
+          />
+          <div
+            className="relative z-10 w-full max-w-sm"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="relative overflow-hidden rounded-3xl border border-blue-500/35 bg-gradient-to-br from-[#081225] via-[#0c1733] to-[#070f1f] p-6 shadow-[0_30px_80px_-45px_rgba(30,124,250,0.75)] text-center">
+              <div className="pointer-events-none absolute -top-24 -right-28 h-72 w-72 rounded-full bg-blue-500/20 blur-3xl" />
+              <div className="pointer-events-none absolute bottom-[-40px] left-1/3 h-48 w-48 rounded-full bg-indigo-400/15 blur-3xl" />
+
               <button
-                onClick={() => setShowDepositModal(false)}
+                onClick={() => {
+                  if (!isDepositing) {
+                    setShowDepositModal(false);
+                    setDepositError(null);
+                  }
+                }}
                 disabled={isDepositing}
-                className="p-2 text-gray-400 hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="absolute top-4 right-4 p-2 text-gray-400 hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
+                <span className="sr-only">Close deposit modal</span>
                 <X className="w-5 h-5" />
               </button>
-            </div>
 
-            <div className="mb-8">
-              <div className="w-20 h-20 mx-auto">
-                <img
-                  src="https://i.imgur.com/fWVz5td.png"
-                  alt="Pump Pumpkin Icon"
-                  className="w-full h-full object-cover rounded-lg"
-                />
-              </div>
-            </div>
+              <div className="flex flex-col items-center space-y-5">
+                <div className="w-16 h-16">
+                  <img
+                    src="https://i.imgur.com/fWVz5td.png"
+                    alt="Pump Pumpkin Icon"
+                    className="w-full h-full object-cover rounded-xl"
+                  />
+                </div>
 
-            <h1 className="text-3xl font-normal mb-2">
-              <span style={{ color: "#1e7cfa" }}>Deposit</span> SOL
-            </h1>
+                <div className="space-y-2">
+                  <h1 className="text-2xl font-semibold">
+                    <span style={{ color: "#1e7cfa" }}>Deposit</span> SOL
+                  </h1>
+                  <p className="text-gray-300 text-sm">
+                    Add SOL To Your Platform Balance
+                  </p>
+                </div>
 
-            <p className="text-gray-400 text-lg mb-2">
-              Add SOL To Your Platform Balance
-            </p>
+                <div className="space-y-1 text-xs text-gray-400">
+                  <p>Wallet Balance: {userBalances.sol.toFixed(4)} SOL</p>
+                  <p>Minimum deposit: 0.04 SOL</p>
+                </div>
 
-            <p className="text-gray-500 text-sm mb-2">
-              Wallet Balance: {userBalances.sol.toFixed(4)} SOL
-            </p>
-            <p className="text-gray-500 text-sm mb-8">
-              Minimum deposit: 0.04 SOL
-            </p>
+                {depositError && (
+                  <div className="w-full bg-red-900/70 border border-red-700/80 rounded-xl p-3 text-left">
+                    <p className="text-red-200 text-xs">{depositError}</p>
+                  </div>
+                )}
 
-            {/* Error Message */}
-            {depositError && (
-              <div className="bg-red-900 border border-red-700 rounded-lg p-3 mb-4">
-                <p className="text-red-300 text-sm">{depositError}</p>
-              </div>
-            )}
+                <div className="w-full">
+                  <div className="relative">
+                    <input
+                      type="number"
+                      value={depositAmount}
+                      onChange={(e) => {
+                        setDepositAmount(e.target.value);
+                        setDepositError(null); // Clear error when user types
+                      }}
+                      placeholder="Enter SOL amount (min 0.04)"
+                      min="0.04"
+                      step="0.001"
+                      disabled={isDepositing}
+                      className="w-full bg-black/40 border border-blue-500/30 rounded-2xl px-4 py-4 pr-20 text-white text-base placeholder-gray-500 focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400 transition-all text-center disabled:opacity-50"
+                    />
+                    <button
+                      onClick={() => {
+                        if (!userBalances.sol || userBalances.sol < 0.06) {
+                          setDepositError(
+                            "Insufficient SOL balance. You need at least 0.06 SOL (0.04 deposit + 0.02 gas fees)."
+                          );
+                          return;
+                        }
 
-            <div className="mb-8">
-              <div className="relative">
-                <input
-                  type="number"
-                  value={depositAmount}
-                  onChange={(e) => {
-                    setDepositAmount(e.target.value);
-                    setDepositError(null); // Clear error when user types
-                  }}
-                  placeholder="Enter SOL amount (min 0.04)"
-                  min="0.04"
-                  max={Math.max(0.04, userBalances.sol - 0.02)}
-                  step="0.001"
-                  disabled={isDepositing}
-                  className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-4 pr-16 text-white text-lg placeholder-gray-500 focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400 transition-all text-center disabled:opacity-50"
-                />
+                        // Set max amount leaving 0.02 SOL for gas fees
+                        const maxAmount = Math.max(0, userBalances.sol - 0.02);
+                        if (maxAmount >= 0.04) {
+                          setDepositAmount(maxAmount.toFixed(4));
+                          setDepositError(null);
+                        } else {
+                          setDepositError(
+                            "Insufficient SOL balance. You need at least 0.06 SOL (0.04 deposit + 0.02 gas fees)."
+                          );
+                        }
+                      }}
+                      disabled={isDepositing}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 px-3 py-2 bg-blue-500 text-black text-xs font-semibold rounded-lg disabled:bg-gray-600 disabled:text-gray-300 disabled:cursor-not-allowed hover:bg-blue-400 transition-colors"
+                    >
+                      MAX
+                    </button>
+                  </div>
+                </div>
+
                 <button
-                  onClick={() => {
-                    if (!userBalances.sol || userBalances.sol < 0.06) {
-                      setDepositError(
-                        "Insufficient SOL balance. You need at least 0.06 SOL (0.04 deposit + 0.02 gas fees)."
-                      );
-                      return;
-                    }
-
-                    // Set max amount leaving 0.02 SOL for gas fees
-                    const maxAmount = Math.max(0, userBalances.sol - 0.02);
-                    if (maxAmount >= 0.04) {
-                      setDepositAmount(maxAmount.toFixed(4));
-                      setDepositError(null);
-                    } else {
-                      setDepositError(
-                        "Insufficient SOL balance. You need at least 0.06 SOL (0.04 deposit + 0.02 gas fees)."
-                      );
+                  onClick={handleDeposit}
+                  disabled={
+                    !depositAmount ||
+                    parseFloat(depositAmount) < 0.04 ||
+                    isDepositing
+                  }
+                  className="w-full text-black font-semibold py-3.5 px-6 rounded-2xl text-base transition-colors disabled:bg-gray-700/70 disabled:text-gray-400 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20"
+                  style={{
+                    backgroundColor:
+                      !depositAmount ||
+                      parseFloat(depositAmount) < 0.04 ||
+                      isDepositing
+                        ? "#374151"
+                        : "#1e7cfa",
+                    color:
+                      !depositAmount ||
+                      parseFloat(depositAmount) < 0.04 ||
+                      isDepositing
+                        ? "#9ca3af"
+                        : "black",
+                  }}
+                  onMouseEnter={(e) => {
+                    if (
+                      depositAmount &&
+                      parseFloat(depositAmount) >= 0.04 &&
+                      !isDepositing
+                    ) {
+                      (e.target as HTMLElement).style.backgroundColor = "#1a6ce8";
                     }
                   }}
-                  disabled={isDepositing}
-                  className="absolute right-2 top-1/2 transform -translate-y-1/2 px-3 py-1 bg-blue-600 text-white text-sm font-medium rounded disabled:bg-gray-600 disabled:cursor-not-allowed hover:bg-blue-500 transition-colors"
+                  onMouseLeave={(e) => {
+                    if (
+                      depositAmount &&
+                      parseFloat(depositAmount) >= 0.04 &&
+                      !isDepositing
+                    ) {
+                      (e.target as HTMLElement).style.backgroundColor = "#1e7cfa";
+                    }
+                  }}
                 >
-                  MAX
+                  {isDepositing ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Processing...</span>
+                    </>
+                  ) : (
+                    <span>
+                      Deposit{" "}
+                      {depositAmount
+                        ? `${parseFloat(depositAmount).toFixed(4)} SOL`
+                        : "SOL"}
+                    </span>
+                  )}
                 </button>
+
+                <div className="space-y-1 text-xs text-gray-400">
+                  <p>SOL Will Be Added To Your Platform Balance</p>
+                  <p>
+                    Transfer to: {PLATFORM_WALLET.slice(0, 8)}...
+                    {PLATFORM_WALLET.slice(-8)}
+                  </p>
+                  <p>Note: 0.02 SOL reserved for gas fees</p>
+                </div>
               </div>
             </div>
-
-            <button
-              onClick={handleDeposit}
-              disabled={
-                !depositAmount ||
-                parseFloat(depositAmount) < 0.04 ||
-                parseFloat(depositAmount) + 0.02 > userBalances.sol ||
-                isDepositing
-              }
-              className="w-full text-black font-medium py-4 px-6 rounded-lg text-lg transition-colors disabled:bg-gray-700 disabled:text-gray-400 disabled:cursor-not-allowed mb-4 flex items-center justify-center space-x-2"
-              style={{
-                backgroundColor:
-                  !depositAmount ||
-                  parseFloat(depositAmount) < 0.04 ||
-                  parseFloat(depositAmount) + 0.02 > userBalances.sol ||
-                  isDepositing
-                    ? "#374151"
-                    : "#1e7cfa",
-                color:
-                  !depositAmount ||
-                  parseFloat(depositAmount) < 0.04 ||
-                  parseFloat(depositAmount) + 0.02 > userBalances.sol ||
-                  isDepositing
-                    ? "#9ca3af"
-                    : "black",
-              }}
-              onMouseEnter={(e) => {
-                if (
-                  depositAmount &&
-                  parseFloat(depositAmount) >= 0.04 &&
-                  parseFloat(depositAmount) + 0.02 <= userBalances.sol &&
-                  !isDepositing
-                ) {
-                  (e.target as HTMLElement).style.backgroundColor = "#1a6ce8";
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (
-                  depositAmount &&
-                  parseFloat(depositAmount) >= 0.04 &&
-                  parseFloat(depositAmount) + 0.02 <= userBalances.sol &&
-                  !isDepositing
-                ) {
-                  (e.target as HTMLElement).style.backgroundColor = "#1e7cfa";
-                }
-              }}
-            >
-              {isDepositing ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  <span>Processing...</span>
-                </>
-              ) : (
-                <span>
-                  Deposit{" "}
-                  {depositAmount
-                    ? `${parseFloat(depositAmount).toFixed(4)} SOL`
-                    : "SOL"}
-                </span>
-              )}
-            </button>
-
-            <p className="text-gray-600 text-xs mb-2">
-              SOL Will Be Added To Your Platform Balance
-            </p>
-            <p className="text-gray-500 text-xs mb-1">
-              Transfer to: {PLATFORM_WALLET.slice(0, 8)}...
-              {PLATFORM_WALLET.slice(-8)}
-            </p>
-            <p className="text-gray-500 text-xs">
-              Note: 0.02 SOL reserved for gas fees
-            </p>
           </div>
         </div>
       )}

@@ -16,6 +16,13 @@ const jupiterQuoteApi = createJupiterApiClient({
 
 // Use Jupiter's native QuoteResponse type
 
+const RPC_ENDPOINTS = [
+  'https://solitary-methodical-resonance.solana-mainnet.quiknode.pro/75cfc57db8a6530f4f781550e81c834f7f96cf61/',
+  'https://solana-api.projectserum.com',
+  'https://solana-mainnet.public.blastapi.io',
+  'https://api.mainnet-beta.solana.com',
+];
+
 export interface SwapResult {
   txid: string;
   inputAmount: number;
@@ -29,7 +36,7 @@ export class JupiterSwapService {
   private connection: Connection;
 
   constructor() {
-    this.connection = new Connection('https://solitary-methodical-resonance.solana-mainnet.quiknode.pro/75cfc57db8a6530f4f781550e81c834f7f96cf61/', {
+    this.connection = new Connection(RPC_ENDPOINTS[0], {
       commitment: 'confirmed',
       confirmTransactionInitialTimeout: 60000,
     });
@@ -329,22 +336,19 @@ export class JupiterSwapService {
     let ppa = 0;
 
     try {
-      // Get SOL balance
-      const solBalance = await this.connection.getBalance(userPublicKey);
+      const solBalance = await this.tryRpcFallback((conn) =>
+        conn.getBalance(userPublicKey)
+      );
       sol = solBalance / 1_000_000_000;
 
-      // Get PPA balance
-      try {
-        const ppaAccounts = await this.connection.getParsedTokenAccountsByOwner(
-          userPublicKey,
-          { mint: new PublicKey(PPA_TOKEN_ADDRESS) }
-        );
-        if (ppaAccounts.value.length > 0) {
-          ppa = ppaAccounts.value[0].account.data.parsed.info.tokenAmount.uiAmount || 0;
-        }
-      } catch (error) {
-        console.warn('⚠️ Could not fetch PPA balance:', error);
-        ppa = 0;
+      const ppaAccounts = await this.tryRpcFallback((conn) =>
+        conn.getParsedTokenAccountsByOwner(userPublicKey, {
+          mint: new PublicKey(PPA_TOKEN_ADDRESS),
+        })
+      );
+      if (ppaAccounts.value.length > 0) {
+        ppa =
+          ppaAccounts.value[0].account.data.parsed.info.tokenAmount.uiAmount || 0;
       }
 
       console.log('💰 Balances - SOL:', sol, 'PPA:', ppa);
@@ -354,6 +358,28 @@ export class JupiterSwapService {
       console.error('💥 Error getting user balances:', error);
       return { sol: 0, ppa: 0 };
     }
+  }
+
+  private async tryRpcFallback<T>(
+    action: (connection: Connection) => Promise<T>
+  ): Promise<T> {
+    let lastError: unknown = null;
+
+    for (const endpoint of RPC_ENDPOINTS) {
+      try {
+        const connection = new Connection(endpoint, {
+          commitment: 'confirmed',
+          confirmTransactionInitialTimeout: 60000,
+        });
+        return await action(connection);
+      } catch (error) {
+        lastError = error;
+        console.error(`💥 Jupiter RPC fallback failed via ${endpoint}:`, error);
+        continue;
+      }
+    }
+
+    throw lastError ?? new Error('All Solana RPC endpoints failed for action');
   }
 }
 
