@@ -1,5 +1,50 @@
+const fs = require('fs');
+const path = require('path');
 const { createClient } = require('@supabase/supabase-js');
 const { Connection, PublicKey, LAMPORTS_PER_SOL } = require('@solana/web3.js');
+
+let didLoadLocalEnv = false;
+
+function loadLocalEnvIfNeeded() {
+  if (didLoadLocalEnv) {
+    return;
+  }
+
+  const requiredKeys = [
+    'SUPABASE_URL',
+    'SUPABASE_SERVICE_ROLE_KEY',
+    'PLATFORM_WALLET',
+    'SOLANA_RPC_URL',
+    'QUICKNODE_RPC',
+  ];
+
+  const missing = requiredKeys.filter((key) => !process.env[key]);
+
+  if (missing.length === 0) {
+    didLoadLocalEnv = true;
+    return;
+  }
+
+  try {
+    const envPath = path.resolve(__dirname, '..', '..', 'netlify-env-vars.txt');
+    if (fs.existsSync(envPath)) {
+      const content = fs.readFileSync(envPath, 'utf-8');
+      content.split(/\r?\n/).forEach((line) => {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith('#')) return;
+        const [key, ...rest] = trimmed.split('=');
+        const value = rest.join('=');
+        if (key && value !== undefined && !process.env[key]) {
+          process.env[key] = value;
+        }
+      });
+    }
+  } catch (error) {
+    console.warn('Unable to load local Netlify env vars:', error);
+  } finally {
+    didLoadLocalEnv = true;
+  }
+}
 
 // Serverless function to verify SOL deposits on-chain and credit user balance
 exports.handler = async (event) => {
@@ -30,10 +75,20 @@ exports.handler = async (event) => {
     }
 
     // Environment variables (set in Netlify dashboard)
-    const SUPABASE_URL = process.env.SUPABASE_URL;
-    const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    const SOLANA_RPC_URL = process.env.SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com';
-    const PLATFORM_WALLET = process.env.PLATFORM_WALLET || 'CTDZ5teoWajqVcAsWQyEmmvHQzaDiV1jrnvwRmcL1iWv';
+    loadLocalEnvIfNeeded();
+
+    const SUPABASE_URL =
+      process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+    const SUPABASE_SERVICE_ROLE_KEY =
+      process.env.SUPABASE_SERVICE_ROLE_KEY ||
+      process.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
+    const PLATFORM_WALLET =
+      process.env.PLATFORM_WALLET || process.env.VITE_PLATFORM_WALLET;
+    const SOLANA_RPC_URL =
+      process.env.QUICKNODE_RPC ||
+      process.env.SOLANA_RPC_URL ||
+      process.env.VITE_SOLANA_RPC_URL ||
+      'https://api.mainnet-beta.solana.com';
 
     if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
       console.error('Missing Supabase env vars');
