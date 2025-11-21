@@ -5,6 +5,17 @@ import UnderConstruction from './components/UnderConstruction.tsx';
 import { MAINTENANCE_MODE } from './config/maintenance.ts';
 import './index.css';
 
+declare global {
+  interface Window {
+    browser?: unknown;
+    chrome?: unknown;
+  }
+}
+
+if (typeof window !== 'undefined') {
+  window.browser = window.browser ?? window.chrome;
+}
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     {MAINTENANCE_MODE ? (
