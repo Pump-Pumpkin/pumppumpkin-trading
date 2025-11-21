@@ -87,6 +87,51 @@ export class UserProfileService {
   }
 
   /**
+   * Call Netlify function to update profile balances using service role
+   */
+  private async callProfileBalanceUpdate(
+    walletAddress: string,
+    updates: { solBalance?: number; usdBalance?: number; reason?: string }
+  ): Promise<{ success: boolean; data?: any }> {
+    try {
+      if (typeof fetch === 'undefined') {
+        console.error('❌ fetch is not available in this environment for balance updates');
+        return { success: false };
+      }
+
+      const response = await fetch('/.netlify/functions/update-profile-balances', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          walletAddress,
+          ...updates,
+        }),
+      });
+
+      let result: any = null;
+      try {
+        result = await response.json();
+      } catch (parseError) {
+        console.error('❌ Failed to parse balance update response:', parseError);
+        return { success: false };
+      }
+
+      if (!response.ok || !result?.success) {
+        console.error(
+          '❌ Balance update function returned an error:',
+          result?.error || result
+        );
+        return { success: false, data: result };
+      }
+
+      return { success: true, data: result };
+    } catch (error) {
+      console.error('💥 Error calling update-profile-balances function:', error);
+      return { success: false };
+    }
+  }
+
+  /**
    * Create a new user profile
    */
   async createProfile(data: CreateUserProfileData): Promise<UserProfile | null> {
@@ -187,21 +232,16 @@ export class UserProfileService {
    */
   async updateBalance(walletAddress: string, newBalance: number): Promise<boolean> {
     try {
-      console.log('💰 Updating USD balance for:', walletAddress, 'to:', newBalance);
-      
-      await this.setCurrentWalletAddress(walletAddress);
-      
-      const { error } = await supabase
-        .from('user_profiles')
-        .update({ balance: newBalance })
-        .eq('wallet_address', walletAddress);
+      const result = await this.callProfileBalanceUpdate(walletAddress, {
+        usdBalance: newBalance,
+        reason: 'updateBalance',
+      });
 
-      if (error) {
-        console.error('❌ Error updating balance:', error);
+      if (!result.success) {
         return false;
       }
 
-      console.log('✅ USD balance updated successfully');
+      console.log('✅ USD balance updated via serverless function');
       return true;
     } catch (error) {
       console.error('💥 Error in updateBalance:', error);
@@ -214,29 +254,17 @@ export class UserProfileService {
    */
   async updateSOLBalance(walletAddress: string, newSOLBalance: number): Promise<boolean> {
     try {
-      console.log('💰 Updating SOL balance for:', walletAddress, 'to:', newSOLBalance);
-      
-      const { data: updateResult, error: updateError } = await supabase
-        .from('user_profiles')
-        .update({ 
-          sol_balance: newSOLBalance,
-          updated_at: new Date().toISOString()
-        })
-        .eq('wallet_address', walletAddress)
-        .select('id, wallet_address, sol_balance');
+      const result = await this.callProfileBalanceUpdate(walletAddress, {
+        solBalance: newSOLBalance,
+        reason: 'updateSOLBalance',
+      });
 
-      if (updateError) {
-        console.error('❌ SOL Balance Update FAILED:', updateError);
-        return false;
-      }
-
-      if (!updateResult || updateResult.length === 0) {
-        console.error('❌ UPDATE QUERY MATCHED ZERO ROWS!');
+      if (!result.success) {
         return false;
       }
       
-      console.log('✅ SOL balance updated successfully');
-      console.log('📊 New SOL balance in DB:', updateResult[0].sol_balance);
+      const updatedBalance = result.data?.solBalance ?? newSOLBalance;
+      console.log('✅ SOL balance updated via serverless function. New balance:', updatedBalance);
       return true;
       
     } catch (error: any) {
@@ -251,41 +279,26 @@ export class UserProfileService {
   async creditSharingReward(walletAddress: string, rewardAmount: number): Promise<boolean> {
     try {
       console.log(`🎁 Crediting sharing reward (${rewardAmount} SOL) to:`, walletAddress);
-      
-      await this.setCurrentWalletAddress(walletAddress);
-      
-      // Get current profile to calculate new balance
       const profile = await this.getProfile(walletAddress);
       if (!profile) {
         console.error('❌ Profile not found for sharing reward');
         return false;
       }
-      
+
       const newSOLBalance = profile.sol_balance + rewardAmount;
-      
-      const { data: updateResult, error: updateError } = await supabase
-        .from('user_profiles')
-        .update({ 
-          sol_balance: newSOLBalance,
-          updated_at: new Date().toISOString()
-        })
-        .eq('wallet_address', walletAddress)
-        .select('id, wallet_address, sol_balance');
+      const result = await this.callProfileBalanceUpdate(walletAddress, {
+        solBalance: newSOLBalance,
+        reason: 'creditSharingReward',
+      });
 
-      if (updateError) {
-        console.error('❌ Sharing reward credit FAILED:', updateError);
+      if (!result.success) {
         return false;
       }
 
-      if (!updateResult || updateResult.length === 0) {
-        console.error('❌ SHARING REWARD UPDATE MATCHED ZERO ROWS!');
-        return false;
-      }
-      
-      console.log('✅ Sharing reward credited successfully');
-      console.log(`📊 SOL balance: ${profile.sol_balance} → ${newSOLBalance} (+${rewardAmount})`);
+      console.log(
+        `✅ Sharing reward credited successfully: ${profile.sol_balance} → ${newSOLBalance} (+${rewardAmount})`
+      );
       return true;
-      
     } catch (error: any) {
       console.error('💥 Error crediting sharing reward:', error);
       return false;
@@ -301,24 +314,17 @@ export class UserProfileService {
     newSOLBalance: number
   ): Promise<boolean> {
     try {
-      console.log('💰 Updating both balances for:', walletAddress);
-      
-      await this.setCurrentWalletAddress(walletAddress);
-      
-      const { error } = await supabase
-        .from('user_profiles')
-        .update({ 
-          balance: newBalance,
-          sol_balance: newSOLBalance 
-        })
-        .eq('wallet_address', walletAddress);
+      const result = await this.callProfileBalanceUpdate(walletAddress, {
+        usdBalance: newBalance,
+        solBalance: newSOLBalance,
+        reason: 'updateBalances',
+      });
 
-      if (error) {
-        console.error('❌ Error updating balances:', error);
+      if (!result.success) {
         return false;
       }
 
-      console.log('✅ Both balances updated successfully');
+      console.log('✅ Both balances updated via serverless function');
       return true;
     } catch (error) {
       console.error('💥 Error in updateBalances:', error);
