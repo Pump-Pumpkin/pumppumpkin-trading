@@ -221,6 +221,8 @@ export default function TradingModal({
     return fallbackPrice;
   };
 
+  const currentEntryPrice = getEntryPrice();
+
   // NEW: Calculate entry price with slippage
   const getLivePrice = (): number => {
     const marketPrice = livePrice;
@@ -272,7 +274,7 @@ export default function TradingModal({
     tradingFeeSOL: number;
     totalRequiredSOL: number;
   } => {
-    if (!amount || !getReferencePrice() || !solPrice) {
+    if (!amount || !currentEntryPrice || !solPrice) {
       return {
         tokenPriceInSOL: 0,
         positionValueSOL: 0,
@@ -283,7 +285,7 @@ export default function TradingModal({
     }
 
     const tokenAmount = parseFloat(amount);
-    const entryPrice = getReferencePrice();
+    const entryPrice = currentEntryPrice;
 
     // Convert token price from USD to SOL
     const tokenPriceInSOL = entryPrice / solPrice;
@@ -856,13 +858,10 @@ export default function TradingModal({
 
   // UPDATED: Calculate max position size including fees
   const getMaxPositionSize = (): number => {
-    if (userSOLBalance === 0 || !solPrice) return 0;
-
-    const entryPrice = getEntryPrice(); // Use entry price with slippage
-    if (entryPrice === 0) return 0;
+    if (userSOLBalance === 0 || !solPrice || !currentEntryPrice) return 0;
 
     // Convert token price to SOL terms
-    const tokenPriceInSOL = entryPrice / solPrice;
+    const tokenPriceInSOL = currentEntryPrice / solPrice;
 
     // Use 95% of balance to leave room for calculations
     const availableSOL = userSOLBalance * 0.95;
@@ -876,13 +875,14 @@ export default function TradingModal({
     // Factor out tokenAmount: availableSOL = tokenAmount * (tokenPriceInSOL / leverage + entryPrice * TRADING_FEE_RATE / solPrice)
 
     const costPerToken =
-      tokenPriceInSOL / leverage + (entryPrice * TRADING_FEE_RATE) / solPrice;
+      tokenPriceInSOL / leverage +
+      (currentEntryPrice * TRADING_FEE_RATE) / solPrice;
     const maxTokenAmount = availableSOL / costPerToken;
 
     console.log("🔢 MAX POSITION CALCULATION WITH FEES:", {
       userSOLBalance: userSOLBalance.toFixed(4),
       availableSOL: availableSOL.toFixed(4),
-      entryPrice: entryPrice.toFixed(6),
+      entryPrice: currentEntryPrice ? currentEntryPrice.toFixed(6) : "0.000000",
       leverage: leverage,
       tradingFeeRate: TRADING_FEE_RATE,
       costPerToken: costPerToken.toFixed(8),
@@ -904,7 +904,7 @@ export default function TradingModal({
       percentageAmount: percentAmount.toFixed(6),
       userSOLBalance: userSOLBalance.toFixed(4),
       solPrice: solPrice?.toFixed(2),
-      entryPrice: getEntryPrice().toFixed(6),
+      entryPrice: currentEntryPrice ? currentEntryPrice.toFixed(6) : "0.000000",
     });
 
     if (percentAmount > 0) {
@@ -1260,7 +1260,7 @@ export default function TradingModal({
                   {percentageButtons.map((button) => {
                     const maxAmount = getMaxPositionSize();
                     const percentAmount = maxAmount * (button.value / 100);
-                    const entryPrice = getEntryPrice();
+                    const entryPrice = currentEntryPrice;
 
                     if (!entryPrice || !solPrice)
                       return (
