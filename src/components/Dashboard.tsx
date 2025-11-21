@@ -2333,57 +2333,71 @@ export default function Dashboard({
     try {
       console.log("Starting SOL withdrawal request:", amount, "SOL");
 
-      // Create withdrawal request and deduct balance
-      const withdrawalRequest =
-        await userProfileService.createWithdrawalRequest(walletAddress, amount);
+      let withdrawalResult: any = null;
 
-      if (withdrawalRequest) {
-        console.log(
-          "Withdrawal request created successfully:",
-          withdrawalRequest.id
-        );
+      try {
+        const response = await fetch("/.netlify/functions/request-withdrawal", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ walletAddress, amount }),
+        });
 
-        // Update local SOL balance immediately (it's already deducted in the database)
-        const newSOLBalance = currentSOLBalance - amount;
-        setCurrentSOLBalance(newSOLBalance);
+        try {
+          withdrawalResult = await response.json();
+        } catch (parseError) {
+          throw new Error(
+            "Withdrawal request sent, but the server returned an invalid response."
+          );
+        }
 
-        // RACE CONDITION FIX: Mark withdrawal timestamp to prevent refresh from overwriting
-        setLastDepositTime(Date.now());
-
-        // Update parent component
-        onUpdateSOLBalance(newSOLBalance);
-
-        // Show success message
-        setWithdrawSuccess(
-          `Withdrawal request submitted for ${amount.toFixed(
-            4
-          )} SOL. Withdrawal is being processed this typically takes up to ${getWithdrawalApprovalTime()}.`
-        );
-
-        // Reload withdrawal requests to show the new one
-        loadWithdrawalRequests();
-
-        // Clear form and close modal after a short delay
-        setTimeout(() => {
-          setWithdrawAmount("");
-          setShowWithdrawModal(false);
-          setWithdrawSuccess(null);
-        }, 3000);
-
-        console.log(
-          `Withdrawal request submitted! New SOL balance: ${newSOLBalance.toFixed(
-            4
-          )} SOL`
-        );
-      } else {
-        setWithdrawError(
-          "Failed to create withdrawal request. Please try again."
+        if (!response.ok || !withdrawalResult?.success) {
+          const message =
+            withdrawalResult?.error ||
+            withdrawalResult?.message ||
+            "Withdrawal request failed.";
+          throw new Error(message);
+        }
+      } catch (requestError: any) {
+        throw new Error(
+          requestError?.message ||
+            "Failed to submit withdrawal request. Please try again."
         );
       }
+
+      const newSOLBalance =
+        typeof withdrawalResult?.newBalance === "number"
+          ? withdrawalResult.newBalance
+          : currentSOLBalance - amount;
+
+      setCurrentSOLBalance(newSOLBalance);
+      setLastDepositTime(Date.now());
+      onUpdateSOLBalance(newSOLBalance);
+
+      const confirmationMessage =
+        withdrawalResult?.message ||
+        `Withdrawal request submitted for ${amount.toFixed(
+          4
+        )} SOL. Withdrawal is being processed this typically takes up to ${getWithdrawalApprovalTime()}.`;
+
+      setWithdrawSuccess(confirmationMessage);
+
+      loadWithdrawalRequests();
+
+      setTimeout(() => {
+        setWithdrawAmount("");
+        setShowWithdrawModal(false);
+        setWithdrawSuccess(null);
+      }, 3000);
+
+      console.log(
+        `Withdrawal request submitted! New SOL balance: ${newSOLBalance.toFixed(
+          4
+        )} SOL`
+      );
     } catch (error: any) {
       console.error("Withdrawal request error:", error);
       setWithdrawError(
-        error.message ||
+        error?.message ||
           "Failed to create withdrawal request. Please try again."
       );
     } finally {
