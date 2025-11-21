@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   X,
   ChevronDown,
@@ -206,8 +206,7 @@ export default function TradingModal({
 
   const orderTypes: OrderType[] = ["Market Order"];
 
-  // NEW: Calculate entry price with slippage
-  const getEntryPrice = (): number => {
+  const currentEntryPrice = useMemo(() => {
     const referencePrice = getReferencePrice();
     if (referencePrice && isFinite(referencePrice) && referencePrice > 0) {
       return referencePrice;
@@ -219,9 +218,7 @@ export default function TradingModal({
     }
 
     return fallbackPrice;
-  };
-
-  const currentEntryPrice = getEntryPrice();
+  }, [orderType, tradeDirection, price, livePrice, tokenData.price]);
 
   // NEW: Calculate entry price with slippage
   const getLivePrice = (): number => {
