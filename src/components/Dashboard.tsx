@@ -2307,25 +2307,6 @@ export default function Dashboard({
     if (!amount || amount <= 0 || amount < 0.04 || amount > currentSOLBalance)
       return;
 
-    // Enforce 3-month wait from last deposit on the client side (UX guard; DB also enforces via RLS)
-    try {
-      const mostRecentDepositDate = (depositHistory || []).reduce<Date | null>((latest, dep) => {
-        const d = new Date(dep.created_at);
-        return !latest || d > latest ? d : latest;
-      }, null);
-      if (mostRecentDepositDate) {
-        const threeMonthsMs = 90 * 24 * 60 * 60 * 1000; // approximate 3 months
-        const waitedMs = Date.now() - mostRecentDepositDate.getTime();
-        if (waitedMs < threeMonthsMs) {
-          const daysLeft = Math.ceil((threeMonthsMs - waitedMs) / (24 * 60 * 60 * 1000));
-          setWithdrawError(`Withdrawals are locked for 3 months after your last deposit. Please wait ~${daysLeft} more day(s).`);
-          return;
-        }
-      }
-    } catch (e) {
-      // If anything goes wrong, let the server-side policy decide
-    }
-
     setIsWithdrawing(true);
     setWithdrawError(null);
     setWithdrawSuccess(null);

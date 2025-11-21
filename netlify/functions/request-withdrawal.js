@@ -137,42 +137,6 @@ exports.handler = async (event) => {
       };
     }
 
-    const { data: latestDeposit, error: depositError } = await supabase
-      .from('deposit_transactions')
-      .select('created_at')
-      .eq('wallet_address', walletAddress)
-      .eq('status', 'completed')
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (depositError) {
-      console.error('Error fetching latest deposit:', depositError);
-      return {
-        statusCode: 500,
-        body: JSON.stringify({ error: 'Failed to validate deposit history' }),
-      };
-    }
-
-    const THREE_MONTHS_MS = 90 * 24 * 60 * 60 * 1000;
-    if (latestDeposit?.created_at) {
-      const depositTime = new Date(latestDeposit.created_at).getTime();
-      if (!Number.isNaN(depositTime)) {
-        const elapsed = Date.now() - depositTime;
-        if (elapsed < THREE_MONTHS_MS) {
-          const daysLeft = Math.ceil(
-            (THREE_MONTHS_MS - elapsed) / (24 * 60 * 60 * 1000)
-          );
-          return {
-            statusCode: 403,
-            body: JSON.stringify({
-              error: `Withdrawals are locked for approximately ${daysLeft} more day(s) after your most recent deposit.`,
-            }),
-          };
-        }
-      }
-    }
-
     const { data: activePositions, error: positionsError } = await supabase
       .from('trading_positions')
       .select('collateral_sol')
