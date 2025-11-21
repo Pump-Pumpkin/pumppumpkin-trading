@@ -50,6 +50,16 @@ DROP FUNCTION IF EXISTS public.create_position_atomic_with_fees(
   p_request_hash TEXT
 );
 
+-- Ensure cleanup_expired_requests helper exists for duplicate protection housekeeping
+CREATE OR REPLACE FUNCTION public.cleanup_expired_requests()
+RETURNS void
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  DELETE FROM position_creation_requests WHERE expires_at < NOW();
+END;
+$$;
+
 CREATE OR REPLACE FUNCTION public.create_position_atomic_with_fees(
   p_wallet_address TEXT,
   p_token_address TEXT,

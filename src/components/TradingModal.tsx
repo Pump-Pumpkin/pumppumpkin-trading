@@ -208,15 +208,17 @@ export default function TradingModal({
 
   // NEW: Calculate entry price with slippage
   const getEntryPrice = (): number => {
-    const marketPrice = tokenData.price;
-
-    if (tradeDirection === "Long") {
-      // Long positions enter at higher price (unfavorable for trader)
-      return marketPrice * (1 + SLIPPAGE_RATE);
-    } else {
-      // Short positions enter at lower price (unfavorable for trader)
-      return marketPrice * (1 - SLIPPAGE_RATE);
+    const referencePrice = getReferencePrice();
+    if (referencePrice && isFinite(referencePrice) && referencePrice > 0) {
+      return referencePrice;
     }
+
+    const fallbackPrice = livePrice || tokenData.price;
+    if (!fallbackPrice || !isFinite(fallbackPrice) || fallbackPrice <= 0) {
+      return 0;
+    }
+
+    return fallbackPrice;
   };
 
   // NEW: Calculate entry price with slippage
