@@ -45,7 +45,7 @@ BEGIN
       AND calc.days >= 1
     RETURNING pl.*
   )
-  SELECT 1;
+  SELECT NULL;
 
   RETURN QUERY
   SELECT *

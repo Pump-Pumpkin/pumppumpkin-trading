@@ -9,6 +9,13 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      (function () {
+        if (typeof window !== "undefined" && !window.browser && window.chrome) {
+          window.browser = window.chrome;
+        }
+      })();
+    </script>
     <script type="module">
       import { Buffer } from 'buffer';
       window.Buffer = Buffer;

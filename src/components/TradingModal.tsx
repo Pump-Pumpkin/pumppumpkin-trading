@@ -206,20 +206,6 @@ export default function TradingModal({
 
   const orderTypes: OrderType[] = ["Market Order"];
 
-  const currentEntryPrice = useMemo(() => {
-    const referencePrice = getReferencePrice();
-    if (referencePrice && isFinite(referencePrice) && referencePrice > 0) {
-      return referencePrice;
-    }
-
-    const fallbackPrice = livePrice || tokenData.price;
-    if (!fallbackPrice || !isFinite(fallbackPrice) || fallbackPrice <= 0) {
-      return 0;
-    }
-
-    return fallbackPrice;
-  }, [orderType, tradeDirection, price, livePrice, tokenData.price]);
-
   // NEW: Calculate entry price with slippage
   const getLivePrice = (): number => {
     const marketPrice = livePrice;
@@ -242,14 +228,28 @@ export default function TradingModal({
     }
   };
 
+  const currentEntryPrice = useMemo(() => {
+    const referencePrice = getReferencePrice();
+    if (referencePrice && isFinite(referencePrice) && referencePrice > 0) {
+      return referencePrice;
+    }
+
+    const fallbackPrice = livePrice || tokenData.price;
+    if (!fallbackPrice || !isFinite(fallbackPrice) || fallbackPrice <= 0) {
+      return 0;
+    }
+
+    return fallbackPrice;
+  }, [orderType, tradeDirection, price, livePrice, tokenData.price]);
+
   // NEW: Calculate trading fee in SOL
   const calculateTradingFeeSOL = (): number => {
-    if (!amount || !getReferencePrice() || !solPrice) {
+    if (!amount || !currentEntryPrice || !solPrice) {
       return 0;
     }
 
     const tokenAmount = parseFloat(amount);
-    const entryPrice = getReferencePrice();
+    const entryPrice = currentEntryPrice;
 
     // Calculate position value in USD
     const positionValueUSD = tokenAmount * entryPrice;
@@ -322,10 +322,10 @@ export default function TradingModal({
 
   // Keep USD trade size for comparison
   const calculateTradeSize = (): number => {
-    if (!amount || !getReferencePrice()) return 0;
+    if (!amount || !currentEntryPrice) return 0;
 
     const tokenAmount = parseFloat(amount);
-    const entryPrice = getReferencePrice();
+    const entryPrice = currentEntryPrice;
     const basePositionValue = tokenAmount * entryPrice;
 
     return basePositionValue;
@@ -333,9 +333,9 @@ export default function TradingModal({
 
   // UPDATED: Calculate liquidation price using entry price with slippage
   const calculateLiquidationPrice = (): number | null => {
-    if (!amount || !getReferencePrice()) return null;
+    if (!amount || !currentEntryPrice) return null;
 
-    const entryPrice = getReferencePrice(); // Already includes slippage
+    const entryPrice = currentEntryPrice;
 
     if (tradeDirection === "Long") {
       return entryPrice * (1 - 1 / leverage);
