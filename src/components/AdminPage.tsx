@@ -99,10 +99,19 @@ export default function AdminPage() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const storedToken = sessionStorage.getItem(ADMIN_SESSION_KEY);
-    if (storedToken) {
+    if (!storedToken) return;
+
+    try {
+      const decoded = window.atob(storedToken);
+      if (!decoded.includes(':')) {
+        throw new Error('Invalid admin token format');
+      }
       setAdminAuthToken(storedToken);
       setIsAuthenticated(true);
       loadData('withdrawals');
+    } catch (err) {
+      console.warn('Discarding stale admin session token', err);
+      sessionStorage.removeItem(ADMIN_SESSION_KEY);
     }
   }, []);
 
@@ -184,6 +193,11 @@ export default function AdminPage() {
       }
 
       if (!response.ok || !result?.success) {
+        if (response.status === 401) {
+          alert('Admin session expired. Please log in again.');
+          handleLogout();
+          return;
+        }
         throw new Error(result?.error || 'Failed to update ban status');
       }
 
