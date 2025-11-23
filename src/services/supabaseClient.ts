@@ -24,6 +24,7 @@ export interface UserProfile {
   profile_image?: string;
   balance: number;
   sol_balance: number; // Add SOL balance tracking
+  is_banned?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -34,6 +35,7 @@ export interface CreateUserProfileData {
   profile_image?: string;
   balance?: number;
   sol_balance?: number; // Add SOL balance to creation data
+  is_banned?: boolean;
 }
 
 export interface UpdateUserProfileData {
@@ -41,6 +43,7 @@ export interface UpdateUserProfileData {
   profile_image?: string;
   balance?: number;
   sol_balance?: number; // Add SOL balance to update data
+  is_banned?: boolean;
 }
 
 export interface WithdrawalRequest {
@@ -148,6 +151,7 @@ export class UserProfileService {
           profile_image: data.profile_image,
           balance: data.balance || 0,
           sol_balance: data.sol_balance || 0, // Initialize SOL balance
+          is_banned: data.is_banned ?? false,
         }])
         .select()
         .single();

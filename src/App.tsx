@@ -8,6 +8,7 @@ import Dashboard from './components/Dashboard';
 import { userProfileService, UserProfile } from './services/supabaseClient';
 import { initializeBusinessPlanOptimizations } from './services/birdeyeApi';
 import LandingPage from './components/LandingPage';
+import AdminPage from './components/AdminPage';
 
 type AppState = 'connect' | 'terms' | 'profile' | 'dashboard' | 'loading';
 
@@ -334,6 +335,7 @@ function App() {
         <Routes>
           <Route path="/" element={<LandingPage />} />
           <Route path="/trading" element={<TradingApp />} />
+          <Route path="/admin" element={<AdminPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
