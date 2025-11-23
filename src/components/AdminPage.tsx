@@ -26,6 +26,7 @@ export default function AdminPage() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [adminAuthToken, setAdminAuthToken] = useState<string | null>(null);
   
   const [activeTab, setActiveTab] = useState<AdminTab>('withdrawals');
   const [isLoading, setIsLoading] = useState(false);
@@ -43,8 +44,10 @@ export default function AdminPage() {
     if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
       setIsAuthenticated(true);
       setError('');
+      const encodedToken = btoa(`${username}:${password}`);
+      setAdminAuthToken(encodedToken);
       if (typeof window !== 'undefined') {
-        sessionStorage.setItem(ADMIN_SESSION_KEY, 'verified');
+        sessionStorage.setItem(ADMIN_SESSION_KEY, encodedToken);
       }
       loadData('withdrawals');
     } else {
@@ -57,6 +60,7 @@ export default function AdminPage() {
       sessionStorage.removeItem(ADMIN_SESSION_KEY);
     }
     setSelectedUser(null);
+    setAdminAuthToken(null);
     setIsAuthenticated(false);
   };
 
@@ -94,8 +98,9 @@ export default function AdminPage() {
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const session = sessionStorage.getItem(ADMIN_SESSION_KEY);
-    if (session === 'verified') {
+    const storedToken = sessionStorage.getItem(ADMIN_SESSION_KEY);
+    if (storedToken) {
+      setAdminAuthToken(storedToken);
       setIsAuthenticated(true);
       loadData('withdrawals');
     }
@@ -151,12 +156,36 @@ export default function AdminPage() {
     }
 
     try {
-      const { error } = await supabase
-        .from('user_profiles')
-        .update({ is_banned: !currentlyBanned })
-        .eq('wallet_address', user.wallet_address);
+      if (!adminAuthToken) {
+        alert('Missing admin session. Please log in again.');
+        return;
+      }
 
-      if (error) throw error;
+      const response = await fetch(
+        '/.netlify/functions/admin-toggle-user-ban',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Basic ${adminAuthToken}`,
+          },
+          body: JSON.stringify({
+            walletAddress: user.wallet_address,
+            isBanned: !currentlyBanned,
+          }),
+        }
+      );
+
+      let result: any = null;
+      try {
+        result = await response.json();
+      } catch (error) {
+        // Ignore parse errors; handled below
+      }
+
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.error || 'Failed to update ban status');
+      }
 
       if (
         selectedUser &&
