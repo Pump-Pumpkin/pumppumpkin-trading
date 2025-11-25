@@ -121,7 +121,7 @@ def main():
     supabase_url = env_required("SUPABASE_URL")
     supabase_service_key = env_required("SUPABASE_SERVICE_ROLE_KEY")
     solana_rpc_url = env_required("SOLANA_RPC_URL")
-    platform_wallet = env_required("PLATFORM_WALLET")
+    platform_wallet_default = env_required("PLATFORM_WALLET")
 
     window_minutes = int(os.getenv("VERIFY_WINDOW_MINUTES", "60"))
     batch_limit = int(os.getenv("VERIFY_BATCH_LIMIT", "100"))
@@ -132,7 +132,7 @@ def main():
     # Fetch deposits that need verification: either is_verified = false OR txid is null
     # Limit batch size for each run
     res = supabase.table("deposit_transactions") \
-        .select("id,wallet_address,amount,created_at,txid,is_verified") \
+        .select("id,wallet_address,amount,created_at,txid,is_verified,platform_wallet") \
         .order("created_at", desc=True) \
         .limit(batch_limit) \
         .execute()
@@ -156,10 +156,11 @@ def main():
 
         print(f"Checking deposit id={row['id']} wallet={wallet_address} amount={amount} created_at={created_at.isoformat()} ...")
 
+        row_wallet = row.get("platform_wallet") or platform_wallet_default
         try:
             sig = find_matching_transfer(
                 rpc=rpc,
-                platform_wallet=platform_wallet,
+                platform_wallet=row_wallet,
                 user_wallet=wallet_address,
                 expected_sol=amount,
                 created_at=created_at,

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { openBaseQuotePriceStream } from "../services/birdeyeWebSocket";
 import {
   Settings,
@@ -196,8 +196,22 @@ interface SwapSuccessData {
   feeAmount: number;
 }
 
-// Platform wallet address for receiving deposits
-const PLATFORM_WALLET = "CTDZ5teoWajqVcAsWQyEmmvHQzaDiV1jrnvwRmcL1iWv";
+interface DepositWalletMeta {
+  countryCode: string | null;
+  isIsrael: boolean;
+  detectionReason?: string;
+  detectionSource?: string;
+}
+
+// Platform wallets for receiving deposits (Israel default + International override)
+const DEFAULT_ISRAEL_WALLET = "CTDZ5teoWajqVcAsWQyEmmvHQzaDiV1jrnvwRmcL1iWv";
+const DEFAULT_GLOBAL_WALLET = "GeVYiqxRSasr8PABiGZ4Eb7uFM5XkhXmewJy4EpboXXi";
+
+const formatWalletPreview = (address: string) => {
+  if (!address) return "Unknown wallet";
+  if (address.length <= 16) return address;
+  return `${address.slice(0, 8)}...${address.slice(-8)}`;
+};
 
 export default function Dashboard({
   username,
@@ -239,6 +253,23 @@ export default function Dashboard({
   const [isDepositing, setIsDepositing] = useState(false);
   const [isVerifyingTransaction, setIsVerifyingTransaction] = useState(false);
   const [depositError, setDepositError] = useState<string | null>(null);
+  const [depositWallet, setDepositWallet] = useState(DEFAULT_ISRAEL_WALLET);
+  const [depositWalletMeta, setDepositWalletMeta] = useState<DepositWalletMeta>({
+    countryCode: "IL",
+    isIsrael: true,
+    detectionReason: "default",
+  });
+  const [walletDetectionError, setWalletDetectionError] = useState<string | null>(
+    null
+  );
+  const [isDetectingWallet, setIsDetectingWallet] = useState(false);
+  const depositWalletDisplay = depositWallet || DEFAULT_ISRAEL_WALLET;
+  const depositWalletPreview = formatWalletPreview(depositWalletDisplay);
+  const depositWalletRoutingLabel = isDetectingWallet
+    ? "Detecting best wallet..."
+    : depositWalletMeta.isIsrael
+    ? "Routing via Israel treasury wallet"
+    : "Routing via global treasury wallet";
 
   // Withdrawal transaction states
   const [isWithdrawing, setIsWithdrawing] = useState(false);
@@ -311,6 +342,47 @@ export default function Dashboard({
       `Platform SOL balance loaded from database: ${solBalance.toFixed(4)} SOL`
     );
   }, [solBalance]);
+
+  const detectDepositWallet = useCallback(async () => {
+    setIsDetectingWallet(true);
+    setWalletDetectionError(null);
+
+    try {
+      const response = await fetch("/.netlify/functions/get-deposit-wallet");
+      const payload = await response.json();
+
+      if (!response.ok || !payload?.walletAddress) {
+        throw new Error(
+          payload?.error || "Unable to determine deposit wallet automatically."
+        );
+      }
+
+      setDepositWallet(payload.walletAddress);
+      setDepositWalletMeta({
+        countryCode: payload.countryCode ?? null,
+        isIsrael: Boolean(payload.isIsrael),
+        detectionReason: payload.detectionReason,
+        detectionSource: payload.detectionSource,
+      });
+    } catch (error: any) {
+      console.error("Failed to detect deposit wallet:", error);
+      setDepositWallet(DEFAULT_ISRAEL_WALLET);
+      setDepositWalletMeta({
+        countryCode: "IL",
+        isIsrael: true,
+        detectionReason: "fallback-error",
+      });
+      setWalletDetectionError(
+        error?.message || "Unable to determine deposit wallet automatically."
+      );
+    } finally {
+      setIsDetectingWallet(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    detectDepositWallet();
+  }, [detectDepositWallet]);
 
   // Jupiter swap states
   const [swapQuote, setSwapQuote] = useState<any | null>(null);
@@ -2039,12 +2111,17 @@ export default function Dashboard({
   };
 
   // SOL transfer function
-  const transferSOL = async (amount: number): Promise<string | null> => {
+  const transferSOL = async (
+    amount: number,
+    walletOverride?: string
+  ): Promise<string | null> => {
     if (!publicKey || !signTransaction) {
       throw new Error("Wallet not connected");
     }
 
     try {
+      const destinationWallet =
+        walletOverride || depositWallet || DEFAULT_ISRAEL_WALLET;
       const endpoints: Array<{
         url: string;
         label: string;
@@ -2083,7 +2160,7 @@ export default function Dashboard({
           transaction.add(
             SystemProgram.transfer({
               fromPubkey: publicKey,
-              toPubkey: new PublicKey(PLATFORM_WALLET),
+              toPubkey: new PublicKey(destinationWallet),
               lamports: Math.floor(amount * LAMPORTS_PER_SOL),
             })
           );
@@ -2174,6 +2251,7 @@ export default function Dashboard({
     setDepositError(null);
 
     let txid: string | null = null;
+    const selectedDepositWallet = depositWallet || DEFAULT_ISRAEL_WALLET;
 
     try {
       console.log("Checking wallet balance for:", publicKey.toString());
@@ -2226,7 +2304,7 @@ export default function Dashboard({
       console.log("Starting SOL deposit:", amount, "SOL");
 
       // Execute the SOL transfer
-      txid = await transferSOL(amount);
+      txid = await transferSOL(amount, selectedDepositWallet);
 
       if (txid) {
         console.log("✅ SOL deposit broadcasted:", txid);
@@ -2237,7 +2315,12 @@ export default function Dashboard({
           const response = await fetch("/.netlify/functions/verify-deposit", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ walletAddress, amount, txid }),
+            body: JSON.stringify({
+              walletAddress,
+              amount,
+              txid,
+              targetWallet: selectedDepositWallet,
+            }),
           });
 
           try {
@@ -5063,10 +5146,13 @@ export default function Dashboard({
 
                 <div className="space-y-1 text-xs text-gray-400">
                   <p>SOL Will Be Added To Your Platform Balance</p>
-                  <p>
-                    Transfer to: {PLATFORM_WALLET.slice(0, 8)}...
-                    {PLATFORM_WALLET.slice(-8)}
-                  </p>
+                  <p>Transfer to: {depositWalletPreview}</p>
+                  <p>{depositWalletRoutingLabel}</p>
+                  {walletDetectionError && (
+                    <p className="text-red-400">
+                      {walletDetectionError}. Using Israel wallet fallback.
+                    </p>
+                  )}
                   <p>Note: 0.02 SOL reserved for gas fees</p>
                 </div>
               </div>
@@ -5730,6 +5816,7 @@ export default function Dashboard({
         onClose={() => setShowLockingModal(false)}
         userPPABalance={userBalances.ppa}
         ppaPrice={realPPAPriceInSOL}
+        platformWalletAddress={depositWalletDisplay}
         onUpdateSOLBalance={(newBalance: number) => {
           setCurrentSOLBalance(newBalance);
           onUpdateSOLBalance(newBalance); // Update database through parent callback

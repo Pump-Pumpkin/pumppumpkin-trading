@@ -134,27 +134,6 @@ exports.handler = async (event) => {
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
   try {
-    const { data: profile, error: fetchError } = await supabase
-      .from('user_profiles')
-      .select('wallet_address, is_banned')
-      .eq('wallet_address', walletAddress)
-      .maybeSingle();
-
-    if (fetchError) {
-      console.error('Error verifying user before ban toggle:', fetchError);
-      return {
-        statusCode: 500,
-        body: JSON.stringify({ error: 'Failed to verify user profile' }),
-      };
-    }
-
-    if (!profile) {
-      return {
-        statusCode: 404,
-        body: JSON.stringify({ error: 'User profile not found' }),
-      };
-    }
-
     const { data: updateResult, error: updateError } = await supabase
       .from('user_profiles')
       .update({
@@ -170,6 +149,13 @@ exports.handler = async (event) => {
       return {
         statusCode: 500,
         body: JSON.stringify({ error: 'Failed to update ban status' }),
+      };
+    }
+
+    if (!updateResult) {
+      return {
+        statusCode: 404,
+        body: JSON.stringify({ error: 'User profile not found' }),
       };
     }
 

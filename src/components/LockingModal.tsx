@@ -12,14 +12,16 @@ interface LockingModalProps {
   userPPABalance: number;
   ppaPrice: number; // PPA price in SOL
   onLockPPA?: (amount: number, lockPeriod: number) => void;
+  onUpdateSOLBalance?: (newBalance: number) => void;
+  platformWalletAddress?: string;
 }
 
 // Platform wallet address for receiving PPA tokens
-const PLATFORM_WALLET = 'CTDZ5teoWajqVcAsWQyEmmvHQzaDiV1jrnvwRmcL1iWv';
+const DEFAULT_PLATFORM_WALLET = 'CTDZ5teoWajqVcAsWQyEmmvHQzaDiV1jrnvwRmcL1iWv';
 // PPA token address
 const PPA_TOKEN_ADDRESS = '51NRTtZ8GwG3J4MGmxTsGJAdLViwu9s5ggEQup35pump';
 
-export default function LockingModal({ isOpen, onClose, userPPABalance, ppaPrice, onLockPPA }: LockingModalProps) {
+export default function LockingModal({ isOpen, onClose, userPPABalance, ppaPrice, onLockPPA, onUpdateSOLBalance, platformWalletAddress }: LockingModalProps) {
   const { publicKey, signTransaction } = useWallet();
   const [amount, setAmount] = useState('');
   const [selectedPercentage, setSelectedPercentage] = useState<number | null>(null);
@@ -64,7 +66,8 @@ export default function LockingModal({ isOpen, onClose, userPPABalance, ppaPrice
 
       const mintAddress = new PublicKey(PPA_TOKEN_ADDRESS);
       const fromWallet = publicKey;
-      const toWallet = new PublicKey(PLATFORM_WALLET);
+      const resolvedPlatformWallet = platformWalletAddress || DEFAULT_PLATFORM_WALLET;
+      const toWallet = new PublicKey(resolvedPlatformWallet);
 
       // Get associated token addresses
       const fromTokenAccount = await getAssociatedTokenAddress(mintAddress, fromWallet);

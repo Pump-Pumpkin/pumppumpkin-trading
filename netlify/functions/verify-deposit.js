@@ -1,50 +1,9 @@
-const fs = require('fs');
-const path = require('path');
 const { createClient } = require('@supabase/supabase-js');
 const { Connection, PublicKey, LAMPORTS_PER_SOL } = require('@solana/web3.js');
-
-let didLoadLocalEnv = false;
-
-function loadLocalEnvIfNeeded() {
-  if (didLoadLocalEnv) {
-    return;
-  }
-
-  const requiredKeys = [
-    'SUPABASE_URL',
-    'SUPABASE_SERVICE_ROLE_KEY',
-    'PLATFORM_WALLET',
-    'SOLANA_RPC_URL',
-    'QUICKNODE_RPC',
-  ];
-
-  const missing = requiredKeys.filter((key) => !process.env[key]);
-
-  if (missing.length === 0) {
-    didLoadLocalEnv = true;
-    return;
-  }
-
-  try {
-    const envPath = path.resolve(__dirname, '..', '..', 'netlify-env-vars.txt');
-    if (fs.existsSync(envPath)) {
-      const content = fs.readFileSync(envPath, 'utf-8');
-      content.split(/\r?\n/).forEach((line) => {
-        const trimmed = line.trim();
-        if (!trimmed || trimmed.startsWith('#')) return;
-        const [key, ...rest] = trimmed.split('=');
-        const value = rest.join('=');
-        if (key && value !== undefined && !process.env[key]) {
-          process.env[key] = value;
-        }
-      });
-    }
-  } catch (error) {
-    console.warn('Unable to load local Netlify env vars:', error);
-  } finally {
-    didLoadLocalEnv = true;
-  }
-}
+const {
+  determineWalletForEvent,
+  loadLocalEnvIfNeeded,
+} = require('../utils/depositWalletHelper');
 
 // Serverless function to verify SOL deposits on-chain and credit user balance
 exports.handler = async (event) => {
@@ -57,7 +16,7 @@ exports.handler = async (event) => {
   }
 
   try {
-    const { walletAddress, amount, txid } = JSON.parse(event.body);
+    const { walletAddress, amount, txid, targetWallet } = JSON.parse(event.body);
 
     // Validate inputs
     if (!walletAddress || !amount || !txid) {
@@ -82,8 +41,6 @@ exports.handler = async (event) => {
     const SUPABASE_SERVICE_ROLE_KEY =
       process.env.SUPABASE_SERVICE_ROLE_KEY ||
       process.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
-    const PLATFORM_WALLET =
-      process.env.PLATFORM_WALLET || process.env.VITE_PLATFORM_WALLET;
     const SOLANA_RPC_URL =
       process.env.QUICKNODE_RPC ||
       process.env.SOLANA_RPC_URL ||
@@ -143,8 +100,33 @@ exports.handler = async (event) => {
       };
     }
 
-    // Verify the transaction is a SOL transfer from user to platform
-    const platformPubkey = new PublicKey(PLATFORM_WALLET);
+    const detection = await determineWalletForEvent(event);
+    const allowedWallets = detection.walletList || [];
+
+    if (targetWallet && !allowedWallets.includes(targetWallet)) {
+      return {
+        statusCode: 400,
+        body: JSON.stringify({ error: 'Invalid target wallet specified' }),
+      };
+    }
+
+    let platformWalletToVerify = detection.walletAddress;
+
+    if (!detection.countryCode && targetWallet) {
+      // If geo lookup failed, trust the client-provided wallet so deposits can still clear.
+      platformWalletToVerify = targetWallet;
+    } else if (targetWallet && targetWallet !== detection.walletAddress) {
+      console.warn(
+        'Target wallet mismatch with geo detection',
+        JSON.stringify({
+          detectedWallet: detection.walletAddress,
+          providedWallet: targetWallet,
+          countryCode: detection.countryCode,
+        })
+      );
+    }
+
+    const platformPubkey = new PublicKey(platformWalletToVerify);
     const userPubkey = new PublicKey(walletAddress);
 
     // Check pre/post balances to confirm transfer
@@ -223,6 +205,7 @@ exports.handler = async (event) => {
         status: 'completed',
         txid: txid,
         is_verified: true,
+        platform_wallet: platformWalletToVerify,
       });
 
     if (depositError) {
@@ -237,6 +220,8 @@ exports.handler = async (event) => {
         message: 'Deposit verified and credited',
         newBalance: newBalance,
         amount: amount,
+        platformWallet: platformWalletToVerify,
+        countryCode: detection.countryCode,
       }),
     };
   } catch (error) {
