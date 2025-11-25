@@ -9,11 +9,25 @@ declare global {
   interface Window {
     browser?: unknown;
     chrome?: unknown;
+    __PUMP_VERBOSE_LOGS__?: boolean;
   }
 }
 
 if (typeof window !== 'undefined') {
   window.browser = window.browser ?? window.chrome;
+  if (import.meta.env.PROD) {
+    const noop = () => {};
+    (['log', 'info', 'debug'] as Array<keyof Console>).forEach((method) => {
+      const original = console[method];
+      console[method] = (...args: unknown[]) => {
+        if (window.__PUMP_VERBOSE_LOGS__) {
+          original.apply(console, args as never);
+        } else {
+          noop();
+        }
+      };
+    });
+  }
 }
 
 createRoot(document.getElementById('root')!).render(

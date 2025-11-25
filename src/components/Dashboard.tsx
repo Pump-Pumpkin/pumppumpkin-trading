@@ -264,12 +264,6 @@ export default function Dashboard({
   );
   const [isDetectingWallet, setIsDetectingWallet] = useState(false);
   const depositWalletDisplay = depositWallet || DEFAULT_ISRAEL_WALLET;
-  const depositWalletPreview = formatWalletPreview(depositWalletDisplay);
-  const depositWalletRoutingLabel = isDetectingWallet
-    ? "Detecting best wallet..."
-    : depositWalletMeta.isIsrael
-    ? "Routing via Israel treasury wallet"
-    : "Routing via global treasury wallet";
 
   // Withdrawal transaction states
   const [isWithdrawing, setIsWithdrawing] = useState(false);
@@ -3292,13 +3286,13 @@ export default function Dashboard({
               <div className="pointer-events-none absolute -top-20 -right-20 h-60 w-60 rounded-full bg-blue-500/15 blur-3xl" />
               <div className="pointer-events-none absolute bottom-0 left-1/3 h-36 w-36 rounded-full bg-indigo-400/10 blur-3xl" />
 
-              <div className="relative grid gap-4 sm:grid-cols-2 lg:grid-cols-3 items-stretch">
-                <div className="rounded-2xl border border-blue-500/35 bg-black/25 px-5 py-6 text-left flex flex-col justify-between">
+              <div className="relative grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 sm:gap-4 items-stretch">
+                <div className="rounded-2xl border border-blue-500/35 bg-black/25 px-5 py-6 text-center flex flex-col justify-between">
                   <div>
                     <p className="text-xs font-semibold tracking-[0.28em] uppercase text-blue-200/75">
                       Lifetime PPA Rewards
                     </p>
-                    <p className="mt-3 text-[26px] font-semibold text-white leading-tight">
+                    <p className="text-[22px] font-semibold text-white leading-tight mb-2">
                       {formatTokenAmount(displayedLifetimeRewards)}
                     </p>
                   </div>
@@ -3310,12 +3304,12 @@ export default function Dashboard({
                   ) : null}
                 </div>
 
-                <div className="rounded-2xl border border-blue-500/35 bg-black/25 px-5 py-6 text-left flex flex-col justify-between">
+                <div className="rounded-2xl border border-blue-500/35 bg-black/25 px-5 py-6 text-center flex flex-col justify-between">
                   <div>
                     <p className="text-xs font-semibold tracking-[0.28em] uppercase text-blue-200/75">
                       Pumpkin Revenue Today
                     </p>
-                    <p className="mt-3 text-[26px] font-semibold text-white leading-tight">
+                    <p className="text-[22px] font-semibold text-white leading-tight mb-2">
                       {formatCurrency(displayedRevenueUsd)}
                     </p>
                   </div>
@@ -3326,12 +3320,12 @@ export default function Dashboard({
                   </div>
                 </div>
 
-                <div className="rounded-2xl border border-blue-500/35 bg-black/25 px-5 py-6 text-left flex flex-col justify-between">
+                <div className="rounded-2xl border border-blue-500/35 bg-black/25 px-5 py-6 text-center flex flex-col justify-between">
                   <div>
                     <p className="text-xs font-semibold tracking-[0.28em] uppercase text-blue-200/75">
                       Total Volume Today
                     </p>
-                    <p className="mt-3 text-[26px] font-semibold text-white leading-tight">
+                    <p className="text-[22px] font-semibold text-white leading-tight mb-2">
                       {formatVolume(displayedVolumeUsd)}
                     </p>
                   </div>
@@ -3354,7 +3348,7 @@ export default function Dashboard({
               </p>
 
               {/* PPA Stats - Compact */}
-              <div className="grid grid-cols-4 gap-2 mb-4">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
                 <div className="text-center">
                   <p className="text-sm font-bold text-white">
                     {formatTokenAmount(userBalances.ppa)}
@@ -4995,7 +4989,7 @@ export default function Dashboard({
             }}
           />
           <div
-            className="relative z-10 w-full max-w-sm"
+            className="relative z-10 w-full max-w-sm max-h-[90vh] overflow-y-auto custom-scrollbar"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="relative overflow-hidden rounded-3xl border border-blue-500/35 bg-gradient-to-br from-[#081225] via-[#0c1733] to-[#070f1f] p-6 shadow-[0_30px_80px_-45px_rgba(30,124,250,0.75)] text-center">
@@ -5146,13 +5140,6 @@ export default function Dashboard({
 
                 <div className="space-y-1 text-xs text-gray-400">
                   <p>SOL Will Be Added To Your Platform Balance</p>
-                  <p>Transfer to: {depositWalletPreview}</p>
-                  <p>{depositWalletRoutingLabel}</p>
-                  {walletDetectionError && (
-                    <p className="text-red-400">
-                      {walletDetectionError}. Using Israel wallet fallback.
-                    </p>
-                  )}
                   <p>Note: 0.02 SOL reserved for gas fees</p>
                 </div>
               </div>
@@ -5164,7 +5151,10 @@ export default function Dashboard({
       {/* Withdraw Modal - Styled like Connect Wallet */}
       {showWithdrawModal && (
         <div className="fixed inset-0 bg-black flex items-center justify-center p-3 z-50">
-          <div className="text-center max-w-xs w-full">
+          <div
+            className="text-center max-w-xs w-full max-h-[90vh] overflow-y-auto custom-scrollbar bg-black/95 rounded-3xl p-6"
+            onClick={(event) => event.stopPropagation()}
+          >
             <div className="flex justify-end mb-4">
               <button
                 onClick={() => {

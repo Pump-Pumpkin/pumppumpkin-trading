@@ -441,7 +441,8 @@ export default function AdminPage() {
                       <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
                     </div>
                   ) : (
-                    <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+                    <>
+                      <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden hidden md:block">
                       <table className="w-full text-left text-sm">
                         <thead className="bg-gray-800 text-gray-400">
                           <tr>
@@ -503,6 +504,66 @@ export default function AdminPage() {
                         </tbody>
                       </table>
                     </div>
+                    <div className="space-y-4 md:hidden">
+                      {withdrawals.map((req) => (
+                        <div
+                          key={req.id}
+                          className="rounded-xl border border-gray-800 bg-gray-900 p-4 space-y-3"
+                        >
+                          <div className="text-xs uppercase tracking-[0.3em] text-gray-400">
+                            Withdrawal
+                          </div>
+                          <p className="font-mono text-xs break-all text-gray-300">
+                            {req.wallet_address}
+                          </p>
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="text-gray-400">Amount</span>
+                            <span className="font-semibold text-white">
+                              {req.amount.toFixed(4)} SOL
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="text-gray-400">Status</span>
+                            <span
+                              className={`px-2 py-1 rounded-full text-xs font-bold capitalize ${
+                                req.status === 'pending'
+                                  ? 'bg-yellow-900/50 text-yellow-400'
+                                  : req.status === 'completed'
+                                  ? 'bg-green-900/50 text-green-400'
+                                  : 'bg-red-900/50 text-red-400'
+                              }`}
+                            >
+                              {req.status}
+                            </span>
+                          </div>
+                          <p className="text-xs text-gray-500">
+                            {new Date(req.created_at).toLocaleString()}
+                          </p>
+                          {req.status === 'pending' && (
+                            <div className="flex gap-2 pt-2">
+                              <button
+                                onClick={() => handleApproveWithdrawal(req.id)}
+                                className="flex-1 px-3 py-2 bg-green-600 hover:bg-green-500 text-white rounded text-xs font-bold"
+                              >
+                                Approve
+                              </button>
+                              <button
+                                onClick={() => handleRejectWithdrawal(req.id)}
+                                className="flex-1 px-3 py-2 bg-red-600 hover:bg-red-500 text-white rounded text-xs font-bold"
+                              >
+                                Reject
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                      {withdrawals.length === 0 && (
+                        <div className="border border-gray-800 rounded-xl p-6 text-center text-gray-500">
+                          No withdrawal requests found
+                        </div>
+                      )}
+                    </div>
+                    </>
                   )}
                 </div>
               )}
@@ -516,7 +577,8 @@ export default function AdminPage() {
                       <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
                     </div>
                   ) : (
-                    <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+                    <>
+                    <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden hidden md:block">
                       <table className="w-full text-left text-sm">
                         <thead className="bg-gray-800 text-gray-400">
                           <tr>
@@ -592,6 +654,63 @@ export default function AdminPage() {
                         </tbody>
                       </table>
                     </div>
+                    <div className="space-y-4 md:hidden">
+                      {users.map((user) => (
+                        <div
+                          key={user.id}
+                          className="rounded-xl border border-gray-800 bg-gray-900 p-4 space-y-3"
+                        >
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-sm font-semibold text-white">
+                                {user.username || 'Anonymous'}
+                              </p>
+                              <button
+                                type="button"
+                                onClick={() => viewUserHistory(user)}
+                                className="font-mono text-xs text-blue-400 underline decoration-dotted break-all"
+                              >
+                                {user.wallet_address}
+                              </button>
+                            </div>
+                            <span
+                              className={`px-2 py-1 rounded-full text-xs font-bold ${
+                                user.is_banned
+                                  ? 'bg-red-900/40 text-red-400'
+                                  : 'bg-green-900/30 text-green-400'
+                              }`}
+                            >
+                              {user.is_banned ? 'Banned' : 'Active'}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="text-gray-400">Balance</span>
+                            <span className="font-semibold text-blue-300">
+                              {user.sol_balance?.toFixed(4) || 0} SOL
+                            </span>
+                          </div>
+                          <p className="text-xs text-gray-500">
+                            Joined {new Date(user.created_at).toLocaleDateString()}
+                          </p>
+                          <button
+                            onClick={() => handleBanUser(user)}
+                            className={`w-full px-3 py-2 rounded text-xs font-bold border transition-colors ${
+                              user.is_banned
+                                ? 'text-green-400 border-green-600 hover:bg-green-900/30'
+                                : 'text-red-400 border-red-700 hover:bg-red-900/30'
+                            }`}
+                          >
+                            {user.is_banned ? 'Unban User' : 'Ban User'}
+                          </button>
+                        </div>
+                      ))}
+                      {users.length === 0 && (
+                        <div className="border border-gray-800 rounded-xl p-6 text-center text-gray-500">
+                          No users found
+                        </div>
+                      )}
+                    </div>
+                    </>
                   )}
                 </div>
               )}
@@ -604,7 +723,8 @@ export default function AdminPage() {
                       <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
                     </div>
                   ) : (
-                    <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+                    <>
+                    <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden hidden md:block">
                       <table className="w-full text-left text-sm">
                         <thead className="bg-gray-800 text-gray-400">
                           <tr>
@@ -647,6 +767,39 @@ export default function AdminPage() {
                         </tbody>
                       </table>
                     </div>
+                    <div className="space-y-4 md:hidden">
+                      {deposits.map((dep) => (
+                        <div
+                          key={dep.id}
+                          className="rounded-xl border border-gray-800 bg-gray-900 p-4 space-y-3"
+                        >
+                          <div className="text-xs uppercase tracking-[0.3em] text-gray-400">
+                            Deposit
+                          </div>
+                          <p className="font-mono text-xs text-gray-300 break-all">
+                            {dep.wallet_address}
+                          </p>
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="text-gray-400">Amount</span>
+                            <span className="font-semibold text-green-400">
+                              +{dep.amount.toFixed(4)} SOL
+                            </span>
+                          </div>
+                          <p className="text-xs text-gray-500 break-all">
+                            {(dep as any).txid || 'No transaction ID'}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {new Date(dep.created_at).toLocaleString()}
+                          </p>
+                        </div>
+                      ))}
+                      {deposits.length === 0 && (
+                        <div className="border border-gray-800 rounded-xl p-6 text-center text-gray-500">
+                          No deposits found
+                        </div>
+                      )}
+                    </div>
+                    </>
                   )}
                 </div>
               )}

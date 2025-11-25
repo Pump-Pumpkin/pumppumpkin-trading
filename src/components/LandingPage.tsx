@@ -72,32 +72,41 @@ const LandingPage: React.FC = () => {
             </div>
           </div>
 
-          <nav className="w-full md:w-auto flex flex-wrap items-center justify-center md:justify-end gap-4 md:gap-6 text-sm text-gray-300">
-            <a href="#features" className="hover:text-white transition-colors">
-              Why Pump Pumpkin
-            </a>
-            <a href="#rewards" className="hover:text-white transition-colors">
-              Rewards
-            </a>
-            <a href="#infrastructure" className="hover:text-white transition-colors">
-              Infrastructure
-            </a>
-            <a href="https://docs.google.com/document/d/1aRZkctIHg7PqQ3G4PEFXn8abbMnmBHn2TmnYB97xZ4w/edit?usp=sharing" target="_blank" rel="noreferrer" className="hover:text-white transition-colors">
-              Docs
-            </a>
-            <Link
-              to="/trading"
-              className="bg-blue-500 text-black font-semibold px-5 py-2 rounded-lg shadow-lg shadow-blue-500/20 hover:bg-blue-400 transition-colors w-full sm:w-auto text-center"
-            >
-              Enter Trading
-            </Link>
-          </nav>
+          <div className="w-full md:w-auto space-y-3">
+            <nav className="hidden md:flex flex-wrap items-center justify-end gap-6 text-sm text-gray-300">
+              <a href="#features" className="hover:text-white transition-colors">
+                Why Pump Pumpkin
+              </a>
+              <a href="#rewards" className="hover:text-white transition-colors">
+                Rewards
+              </a>
+              <a href="#infrastructure" className="hover:text-white transition-colors">
+                Infrastructure
+              </a>
+              <a
+                href="https://docs.google.com/document/d/1aRZkctIHg7PqQ3G4PEFXn8abbMnmBHn2TmnYB97xZ4w/edit?usp=sharing"
+                target="_blank"
+                rel="noreferrer"
+                className="hover:text-white transition-colors"
+              >
+                Docs
+              </a>
+              <Link
+                to="/trading"
+                className="bg-blue-500 text-black font-semibold px-5 py-2 rounded-lg shadow-lg shadow-blue-500/20 hover:bg-blue-400 transition-colors text-center"
+              >
+                Enter Trading
+              </Link>
+            </nav>
+          </div>
         </header>
 
-        <section className="relative z-10 px-4 sm:px-6 lg:px-12 py-16 md:py-24">
+        <section className="relative z-10 px-4 sm:px-6 lg:px-12 pt-10 pb-16 md:py-24">
           <div className="max-w-6xl mx-auto">
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-blue-500/40 bg-blue-900/20 text-blue-200 uppercase tracking-[0.3em] text-xs mb-6 mx-auto md:mx-0">
-              Built for pump.fun hunters
+            <div className="w-full flex justify-center md:justify-start mb-3">
+              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-blue-500/40 bg-blue-900/20 text-blue-200 uppercase tracking-[0.3em] text-xs">
+                Built for pump.fun hunters
+              </div>
             </div>
             <div className="space-y-6 text-center md:text-left">
               <h1 className="text-3xl sm:text-4xl lg:text-6xl font-semibold leading-tight">
@@ -195,8 +204,8 @@ const LandingPage: React.FC = () => {
         className="px-4 sm:px-6 lg:px-12 py-16 md:py-24 bg-gradient-to-r from-blue-900/20 via-black to-blue-900/20"
       >
         <div className="max-w-6xl mx-auto">
-          <div className="grid gap-10 lg:gap-16 md:grid-cols-2 items-center">
-            <div>
+          <div className="grid gap-12 lg:gap-16 md:grid-cols-2 items-center">
+            <div className="order-2 md:order-1">
               <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-blue-500/40 bg-blue-900/10 text-blue-200 uppercase tracking-[0.25em] text-xs mb-4">
                 PPA Liquidity Loop
               </div>
@@ -226,46 +235,72 @@ const LandingPage: React.FC = () => {
               </ul>
             </div>
 
-            <div className="border border-blue-500/30 bg-blue-900/10 rounded-3xl p-8 backdrop-blur-sm">
-              <div className="flex flex-col sm:flex-row items-center justify-between text-center sm:text-left gap-4 mb-6">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.3em] text-gray-400">
-                    Current Cycle
-                  </p>
-                <p className="text-3xl font-semibold text-blue-300">
-                    80% of Platform Profits
-                  </p>
+            <div className="order-1 md:order-2">
+              <div className="border border-blue-500/30 bg-blue-900/10 rounded-3xl p-8 backdrop-blur-sm">
+                <div className="flex items-center justify-between text-sm text-gray-400 uppercase tracking-[0.3em] mb-6">
+                  <span>Vault Stats</span>
+                  <span className="flex items-center gap-2 text-blue-200">
+                    <Globe2 className="w-4 h-4" />
+                    Live
+                  </span>
                 </div>
-                <div className="h-12 w-12 rounded-2xl bg-blue-500/20 border border-blue-500/40 flex items-center justify-center">
-                  <Globe2 className="w-6 h-6 text-blue-200" />
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+                  <div className="rounded-2xl border border-white/10 p-4">
+                    <p className="text-xs uppercase tracking-[0.25em] text-gray-400 mb-2">
+                      Liquidity Locked
+                    </p>
+                    <p className="text-3xl font-semibold text-white">70M PPA</p>
+                    <p className="text-xs text-gray-500">
+                      Updated hourly from Supabase vault stats.
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 p-4">
+                    <p className="text-xs uppercase tracking-[0.25em] text-gray-400 mb-2">
+                      Next Unlock Window
+                    </p>
+                    <p className="text-3xl font-semibold text-white">In 3 days</p>
+                    <p className="text-xs text-gray-500">
+                      Queued unlock requests process automatically.
+                    </p>
+                  </div>
                 </div>
+
+                <div className="space-y-4 mb-8">
+                  <div className="rounded-2xl border border-blue-500/30 bg-blue-900/20 p-4">
+                    <p className="text-xs uppercase tracking-[0.2em] text-blue-200 mb-1">
+                      Current Cycle
+                    </p>
+                    <p className="text-2xl font-semibold text-blue-200">
+                      80% of Platform Profits
+                    </p>
+                    <p className="text-xs text-gray-400 mt-1">
+                      Distributed pro rata to locked PPA.
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.2em] text-gray-400">
+                        Boost Tier
+                      </p>
+                      <p className="text-xl font-semibold text-white">+18% APR</p>
+                      <p className="text-xs text-gray-500">30-day lock</p>
+                    </div>
+                    <div className="text-sm text-gray-300">
+                      7-day lock: +10% APR
+                      <br />
+                      14-day lock: +14% APR
+                    </div>
+                  </div>
+                </div>
+
+                <Link
+                  to="/trading"
+                  className="inline-flex items-center justify-center gap-2 w-full px-6 py-3 bg-blue-500 hover:bg-blue-400 text-black font-semibold rounded-xl transition-colors"
+                >
+                  Start Locking PPA
+                </Link>
               </div>
-              <div className="space-y-6">
-                <div className="rounded-2xl border border-white/10 p-4">
-                  <p className="text-xs uppercase tracking-[0.25em] text-gray-400 mb-2">
-                    Liquidity Locked
-                  </p>
-                  <p className="text-2xl font-semibold text-white">70M PPA Locked</p>
-                  <p className="text-sm text-gray-500">
-                    Updated hourly from Supabase vault stats.
-                  </p>
-                </div>
-                <div className="rounded-2xl border border-white/10 p-4">
-                  <p className="text-xs uppercase tracking-[0.25em] text-gray-400 mb-2">
-                    Next Unlock Window
-                  </p>
-                  <p className="text-2xl font-semibold text-white">In 3 days</p>
-                  <p className="text-sm text-gray-500">
-                    Queued unlock requests process automatically.
-                  </p>
-                </div>
-              </div>
-              <Link
-                to="/trading"
-                className="mt-8 inline-flex items-center justify-center gap-2 w-full px-6 py-3 bg-blue-500 hover:bg-blue-400 text-black font-semibold rounded-xl transition-colors"
-              >
-                Start Locking PPA
-              </Link>
             </div>
           </div>
         </div>

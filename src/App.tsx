@@ -5,6 +5,7 @@ import WalletButton from './components/WalletButton';
 import TermsOfService from './components/TermsOfService';
 import SetupProfile from './components/SetupProfile';
 import Dashboard from './components/Dashboard';
+import LoadingScreen from './components/LoadingScreen';
 import { userProfileService, UserProfile } from './services/supabaseClient';
 import { initializeBusinessPlanOptimizations } from './services/birdeyeApi';
 import LandingPage from './components/LandingPage';
@@ -188,43 +189,7 @@ function TradingApp() {
 
   // Simple Loading state - matches connect wallet page design
   if (currentState === 'loading' || isLoadingProfile) {
-    return (
-      <div className="min-h-screen bg-black text-white flex items-center justify-center p-4">
-        <div className="text-center max-w-sm w-full mx-auto">
-          {/* Simple Icon - matches connect wallet page */}
-          <div className="mb-8">
-            <div className="w-24 h-24 mx-auto relative">
-            <img 
-              src="https://i.imgur.com/fWVz5td.png" 
-                alt="Pump Pumpkin Icon" 
-                className="w-full h-full object-cover rounded-xl relative z-10"
-            />
-              {/* Pulsing borders from all sides */}
-              <div className="absolute inset-0 border-4 border-blue-500 rounded-xl opacity-60 animate-pulse"></div>
-              <div className="absolute inset-0 border-2 border-blue-400 rounded-xl opacity-40 animate-pulse" style={{ animationDelay: '0.5s' }}></div>
-            </div>
-          </div>
-
-          {/* Main Text - matches connect wallet page style */}
-          <h1 className="text-3xl font-normal mb-4">
-            Loading <span style={{ color: '#1e7cfa' }}>Pump Pumpkin</span>
-          </h1>
-          
-          {/* Subtitle - matches connect wallet page */}
-          <p className="text-gray-400 text-lg mb-4">Pump.fun Leverage Trading</p>
-          
-          {/* Loading text - matches connect wallet page */}
-          <p className="text-gray-500 text-sm mb-8">Preparing your trading terminal...</p>
-          
-          {/* Simple loading indicator */}
-          <div className="flex justify-center space-x-1">
-            <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-            <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" style={{ animationDelay: '0.2s' }}></div>
-            <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" style={{ animationDelay: '0.4s' }}></div>
-          </div>
-        </div>
-      </div>
-    );
+    return <LoadingScreen walletAddress={walletAddress} />;
   }
 
   // Terms of Service page
@@ -262,10 +227,10 @@ function TradingApp() {
 
   // Connect Wallet page (default)
   return (
-    <div className="min-h-screen bg-black text-white flex items-center justify-center p-4">
-      <div className="text-center max-w-sm w-full mx-auto">
+    <div className="min-h-screen bg-black text-white flex items-center justify-center p-6 sm:p-4">
+      <div className="text-center max-w-sm w-full mx-auto px-6 sm:px-4">
         {/* Character Icon - Mobile optimized */}
-        <div className="mb-8">
+        <div className="mb-4 sm:mb-8">
           <div className="w-24 h-24 mx-auto">
             <img 
               src="https://i.imgur.com/fWVz5td.png" 
