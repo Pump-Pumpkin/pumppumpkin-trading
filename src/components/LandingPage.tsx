@@ -201,105 +201,137 @@ const LandingPage: React.FC = () => {
       {/* Rewards */}
       <section
         id="rewards"
-        className="px-4 sm:px-6 lg:px-12 py-16 md:py-24 bg-gradient-to-r from-blue-900/20 via-black to-blue-900/20"
+        className="px-4 sm:px-6 lg:px-12 py-16 md:py-24 bg-gradient-to-r from-blue-900/25 via-black to-blue-900/25"
       >
-        <div className="max-w-6xl mx-auto">
-          <div className="grid gap-12 lg:gap-16 md:grid-cols-2 items-center">
-            <div className="order-2 md:order-1">
-              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-blue-500/40 bg-blue-900/10 text-blue-200 uppercase tracking-[0.25em] text-xs mb-4">
-                PPA Liquidity Loop
-              </div>
-              <h2 className="text-3xl md:text-4xl font-semibold mb-4">
-                Lock. Boost. Earn. Repeat.
-              </h2>
-              <p className="text-gray-300 text-lg mb-6">
-                Commit your PPA to the reward vault for 7–30 days and earn SOL + PPA rewards every month.
+        <div className="max-w-6xl mx-auto space-y-10">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6 text-center md:text-left">
+            <div>
+              <p className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-blue-500/40 bg-blue-900/20 text-blue-200 uppercase tracking-[0.25em] text-xs mb-3">
+                Rewards Engine
               </p>
-              <ul className="space-y-3 text-sm text-gray-300">
-                <li className="flex items-center gap-3">
-                  <Shield className="w-5 h-5 text-blue-300" />
-                  <span>Get priority access to new trading features, boosted leverage tiers, and exclusive early signals.</span>
-                </li>
-                <li className="flex items-center gap-3">
-                  <TrendingUp className="w-5 h-5 text-blue-300" />
-                  <span>Anti-fake deposit validation ensures rewards stay real.</span>
-                </li>
-                <li className="flex items-center gap-3">
-                  <Gauge className="w-5 h-5 text-blue-300" />
-                  <span>Live earnings tracking built right into your balance dashboard.</span>
-                </li>
-                <li className="flex items-center gap-3">
-                  <LineChart className="w-5 h-5 text-blue-300" />
-                  <span>Tiered boosts for longer lock durations.</span>
-                </li>
-              </ul>
+              <h2 className="text-3xl md:text-4xl font-semibold">
+                Lock PPA. Amplify yield. Fuel liquidity.
+              </h2>
+              <p className="text-gray-300 text-lg mt-3">
+                Turn idle PPA into a compounding position. Rewards are sourced from 80% of
+                platform profits and streamed back to lockers.
+              </p>
+            </div>
+            <div className="space-y-3 w-full md:w-auto">
+              <Link
+                to="/trading"
+                className="inline-flex items-center justify-center gap-2 px-8 py-3 bg-blue-500 hover:bg-blue-400 text-black font-semibold rounded-2xl transition-colors shadow-lg shadow-blue-500/20 w-full md:w-auto"
+              >
+                Start Locking
+                <Zap className="w-4 h-4" />
+              </Link>
+              <p className="text-xs uppercase tracking-[0.3em] text-gray-500">
+                2 minute setup • cancel anytime
+              </p>
+            </div>
+          </div>
+
+          <div className="grid gap-8 lg:grid-cols-2">
+            <div className="rounded-3xl border border-white/10 bg-white/5 p-6 sm:p-8 backdrop-blur-md space-y-6">
+              <div className="flex items-center justify-between text-sm text-gray-400 uppercase tracking-[0.3em]">
+                <span>Vault telemetry</span>
+                <span className="flex items-center gap-2 text-blue-200">
+                  <Globe2 className="w-4 h-4" />
+                  Live
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
+                  <p className="text-xs uppercase tracking-[0.25em] text-gray-400 mb-1">
+                    Liquidity locked
+                  </p>
+                  <p className="text-3xl font-semibold text-white">70M PPA</p>
+                  <p className="text-xs text-gray-500 mt-1">auto-updated hourly</p>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
+                  <p className="text-xs uppercase tracking-[0.25em] text-gray-400 mb-1">
+                    Unlock window
+                  </p>
+                  <p className="text-3xl font-semibold text-white">3 days</p>
+                  <p className="text-xs text-gray-500 mt-1">queued exits process asap</p>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-blue-500/30 bg-blue-900/20 p-5 space-y-2">
+                <div className="flex items-center justify-between text-sm text-blue-200">
+                  <span>Current cycle</span>
+                  <span>80% profit share</span>
+                </div>
+                <div className="w-full h-2 rounded-full bg-blue-900/40">
+                  <div className="h-full w-[80%] rounded-full bg-gradient-to-r from-blue-400 to-cyan-300" />
+                </div>
+                <p className="text-xs text-blue-100">
+                  Rewards stream out as SOL + PPA based on your vault percentage.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="rounded-2xl border border-white/10 p-4 text-center">
+                  <p className="text-xs uppercase tracking-[0.3em] text-gray-400">
+                    7-day
+                  </p>
+                  <p className="text-2xl font-semibold text-white mt-1">+10% APR</p>
+                </div>
+                <div className="rounded-2xl border border-blue-500/40 bg-blue-900/30 p-4 text-center shadow-lg shadow-blue-500/10">
+                  <p className="text-xs uppercase tracking-[0.3em] text-blue-200">
+                    14-day
+                  </p>
+                  <p className="text-2xl font-semibold text-blue-100 mt-1">+14% APR</p>
+                </div>
+                <div className="rounded-2xl border border-white/10 p-4 text-center">
+                  <p className="text-xs uppercase tracking-[0.3em] text-gray-400">
+                    30-day
+                  </p>
+                  <p className="text-2xl font-semibold text-white mt-1">+18% APR</p>
+                </div>
+              </div>
             </div>
 
-            <div className="order-1 md:order-2">
-              <div className="border border-blue-500/30 bg-blue-900/10 rounded-3xl p-8 backdrop-blur-sm">
-                <div className="flex items-center justify-between text-sm text-gray-400 uppercase tracking-[0.3em] mb-6">
-                  <span>Vault Stats</span>
-                  <span className="flex items-center gap-2 text-blue-200">
-                    <Globe2 className="w-4 h-4" />
-                    Live
-                  </span>
+            <div className="rounded-3xl border border-white/10 bg-black/40 p-6 sm:p-8 space-y-5">
+              <div className="flex items-center gap-3">
+                <Shield className="w-6 h-6 text-blue-300" />
+                <div>
+                  <p className="text-lg font-semibold">Institutional safeguards</p>
+                  <p className="text-sm text-gray-400">
+                    Each deposit is verified and reconciled before rewards unlock.
+                  </p>
                 </div>
+              </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-                  <div className="rounded-2xl border border-white/10 p-4">
-                    <p className="text-xs uppercase tracking-[0.25em] text-gray-400 mb-2">
-                      Liquidity Locked
-                    </p>
-                    <p className="text-3xl font-semibold text-white">70M PPA</p>
-                    <p className="text-xs text-gray-500">
-                      Updated hourly from Supabase vault stats.
-                    </p>
-                  </div>
-                  <div className="rounded-2xl border border-white/10 p-4">
-                    <p className="text-xs uppercase tracking-[0.25em] text-gray-400 mb-2">
-                      Next Unlock Window
-                    </p>
-                    <p className="text-3xl font-semibold text-white">In 3 days</p>
-                    <p className="text-xs text-gray-500">
-                      Queued unlock requests process automatically.
-                    </p>
-                  </div>
+              <div className="flex items-center gap-3">
+                <TrendingUp className="w-6 h-6 text-blue-300" />
+                <div>
+                  <p className="text-lg font-semibold">Anti-wash rewards</p>
+                  <p className="text-sm text-gray-400">
+                    Fake volume gets filtered out so lockers only split real profits.
+                  </p>
                 </div>
+              </div>
 
-                <div className="space-y-4 mb-8">
-                  <div className="rounded-2xl border border-blue-500/30 bg-blue-900/20 p-4">
-                    <p className="text-xs uppercase tracking-[0.2em] text-blue-200 mb-1">
-                      Current Cycle
-                    </p>
-                    <p className="text-2xl font-semibold text-blue-200">
-                      80% of Platform Profits
-                    </p>
-                    <p className="text-xs text-gray-400 mt-1">
-                      Distributed pro rata to locked PPA.
-                    </p>
-                  </div>
-                  <div className="rounded-2xl border border-white/10 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                    <div>
-                      <p className="text-xs uppercase tracking-[0.2em] text-gray-400">
-                        Boost Tier
-                      </p>
-                      <p className="text-xl font-semibold text-white">+18% APR</p>
-                      <p className="text-xs text-gray-500">30-day lock</p>
-                    </div>
-                    <div className="text-sm text-gray-300">
-                      7-day lock: +10% APR
-                      <br />
-                      14-day lock: +14% APR
-                    </div>
-                  </div>
+              <div className="flex items-center gap-3">
+                <Gauge className="w-6 h-6 text-blue-300" />
+                <div>
+                  <p className="text-lg font-semibold">Live telemetry</p>
+                  <p className="text-sm text-gray-400">
+                    Your dashboard shows accrued PPA + SOL every few seconds.
+                  </p>
                 </div>
+              </div>
 
-                <Link
-                  to="/trading"
-                  className="inline-flex items-center justify-center gap-2 w-full px-6 py-3 bg-blue-500 hover:bg-blue-400 text-black font-semibold rounded-xl transition-colors"
-                >
-                  Start Locking PPA
-                </Link>
+              <div className="flex items-center gap-3">
+                <LineChart className="w-6 h-6 text-blue-300" />
+                <div>
+                  <p className="text-lg font-semibold">Stackable boosts</p>
+                  <p className="text-sm text-gray-400">
+                    Longer lock + higher PPA stake = multiplicative multipliers.
+                  </p>
+                </div>
               </div>
             </div>
           </div>

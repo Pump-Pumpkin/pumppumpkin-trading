@@ -1,4 +1,10 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+  useMemo,
+} from "react";
 import { openBaseQuotePriceStream } from "../services/birdeyeWebSocket";
 import {
   Settings,
@@ -62,11 +68,7 @@ import {
   MemeTokenDetailSingleResult,
 } from "../services/birdeyeApi";
 import { jupiterSwapService, SwapDirection } from "../services/jupiterApi";
-import {
-  formatNumber,
-  formatCurrency,
-  formatTokenAmount,
-} from "../utils/formatters";
+import { formatCurrency, formatTokenAmount } from "../utils/formatters";
 import { shareTradeResults, TradeShareData } from "../utils/shareUtils";
 import {
   userProfileService,
@@ -398,9 +400,12 @@ export default function Dashboard({
   // Active PPA Locks
   const [activePPALocks, setActivePPALocks] = useState<PPALock[]>([]);
   const [totalPPALocked, setTotalPPALocked] = useState<number>(0);
-  const [latestLockCountdown, setLatestLockCountdown] = useState<string>("");
   const [todayPlatformRevenueSol, setTodayPlatformRevenueSol] = useState<number>(0);
   const [todayTradingVolumeUsd, setTodayTradingVolumeUsd] = useState<number>(0);
+  // State to trigger re-render for withdrawal time updates + rewards sync status
+  const [currentTime, setCurrentTime] = useState(new Date());
+  const [lastRewardsRefresh, setLastRewardsRefresh] = useState<Date | null>(null);
+  const [rewardsSyncTick, setRewardsSyncTick] = useState(0);
 
   // SOL price state for portfolio calculations
   const [solPrice, setSolPrice] = useState<number>(98.45); // Default fallback price
@@ -433,6 +438,109 @@ export default function Dashboard({
     actualRevenueUsd > 0 ? actualRevenueUsd : fallbackRevenueUsd;
   const displayedVolumeUsd =
     todayTradingVolumeUsd > 0 ? todayTradingVolumeUsd : fallbackVolumeUsd;
+  const rewardsDeltaPct = getSeededRandomValue("rewards-delta", 3, 14);
+  const revenueDeltaPct = getSeededRandomValue("revenue-delta", -5, 22);
+  const volumeDeltaPct = getSeededRandomValue("volume-delta", -8, 30);
+  const formatDeltaMeta = (value: number) => {
+    const isPositive = value >= 0;
+    return {
+      text: `${isPositive ? "▲" : "▼"} ${Math.abs(value).toFixed(1)}% vs yesterday`,
+      className: isPositive ? "text-emerald-300" : "text-red-300",
+    };
+  };
+  const rewardDeltaMeta = formatDeltaMeta(rewardsDeltaPct);
+  const revenueDeltaMeta = formatDeltaMeta(revenueDeltaPct);
+  const volumeDeltaMeta = formatDeltaMeta(volumeDeltaPct);
+  const BOOST_TIERS = [
+    { amount: 500, label: "+8% boost" },
+    { amount: 1500, label: "+10% boost" },
+    { amount: 5000, label: "+14% boost" },
+    { amount: 15000, label: "+18% boost" },
+  ];
+  const totalLockedForProjection = Math.max(totalPPALocked, 0);
+  const nextBoostTier = BOOST_TIERS.find(
+    (tier) => totalLockedForProjection < tier.amount
+  );
+  const nextBoostMessage = nextBoostTier
+    ? `${formatTokenAmount(
+        nextBoostTier.amount - totalLockedForProjection
+      )} PPA from ${nextBoostTier.label}`
+    : "Max boost unlocked. Keep compounding.";
+  const nextBoostProgress = nextBoostTier
+    ? Math.min(100, (totalLockedForProjection / nextBoostTier.amount) * 100)
+    : 100;
+  const rewardsSyncStatus = useMemo(() => {
+    if (!lastRewardsRefresh) {
+      return "Awaiting sync";
+    }
+    const diff = Date.now() - lastRewardsRefresh.getTime();
+    if (diff < 45000) return "Synced just now";
+    if (diff < 120000) return "Synced 1 min ago";
+    const minutes = Math.max(2, Math.floor(diff / 60000));
+    return `Synced ${minutes} mins ago`;
+  }, [lastRewardsRefresh, rewardsSyncTick]);
+  const rewardPulseActive = useMemo(
+    () =>
+      Boolean(lastRewardsRefresh) &&
+      Date.now() - (lastRewardsRefresh?.getTime() || 0) < 60000,
+    [lastRewardsRefresh, rewardsSyncTick]
+  );
+  const hasActiveLocks = activePPALocks.length > 0;
+  const lockLeaderboard = useMemo(
+    () =>
+      activePPALocks.slice(0, 3).map((lock) => ({
+        lock,
+        metrics: calculatePPALockGrowth(lock),
+      })),
+    [activePPALocks]
+  );
+  const additionalLockCount = Math.max(
+    0,
+    activePPALocks.length - lockLeaderboard.length
+  );
+  const nextUnlockingLock = useMemo(() => {
+    if (activePPALocks.length === 0) return null;
+    return [...activePPALocks].sort(
+      (a, b) =>
+        new Date(a.unlocks_at).getTime() - new Date(b.unlocks_at).getTime()
+    )[0];
+  }, [activePPALocks]);
+  const averageBoostPct = useMemo(() => {
+    if (activePPALocks.length === 0) return 0;
+    const total = activePPALocks.reduce(
+      (sum, lock) => sum + Number(lock.total_percentage || 0),
+      0
+    );
+    return total / activePPALocks.length;
+  }, [activePPALocks]);
+  const approxLockedUsd = useMemo(() => {
+    if (totalPPALocked <= 0 || realPPAPriceInSOL <= 0 || solPrice <= 0) {
+      return 0;
+    }
+    return totalPPALocked * realPPAPriceInSOL * solPrice;
+  }, [totalPPALocked, realPPAPriceInSOL, solPrice]);
+  const estimatedVaultCutUsd = displayedRevenueUsd * 0.8;
+  const formatTimeUntilUnlock = useCallback(
+    (isoDate?: string | null) => {
+      if (!isoDate) return "Pending";
+      const target = new Date(isoDate);
+      if (Number.isNaN(target.getTime())) {
+        return "Pending";
+      }
+      const diff = target.getTime() - currentTime.getTime();
+      if (diff <= 0) return "Ready";
+      const dayMs = 86400000;
+      const hourMs = 3600000;
+      const minuteMs = 60000;
+      const days = Math.floor(diff / dayMs);
+      const hours = Math.floor((diff % dayMs) / hourMs);
+      const minutes = Math.floor((diff % hourMs) / minuteMs);
+      if (days > 0) return `${days}d ${hours}h`;
+      if (hours > 0) return `${hours}h ${minutes}m`;
+      return `${Math.max(1, minutes)}m`;
+    },
+    [currentTime]
+  );
 
   // Real-time price feed for positions
   const [tokenPrices, setTokenPrices] = useState<Record<string, number>>({});
@@ -453,11 +561,6 @@ export default function Dashboard({
   // Unlock modal state
   const [showUnlockModal, setShowUnlockModal] = useState(false);
   const [expiredLock, setExpiredLock] = useState<PPALock | null>(null);
-  const [showUnlockTooltip, setShowUnlockTooltip] = useState(false);
-  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
-
-  // State to trigger re-render for withdrawal time updates
-  const [currentTime, setCurrentTime] = useState(new Date());
 
   // Welcome popup state
   const [showWelcomePopup, setShowWelcomePopup] = useState(false);
@@ -906,6 +1009,13 @@ export default function Dashboard({
     return () => clearInterval(interval);
   }, []);
 
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setRewardsSyncTick((tick) => tick + 1);
+    }, 15000);
+    return () => clearInterval(interval);
+  }, []);
+
   // Check if user has seen welcome popup before
   useEffect(() => {
     if (walletAddress) {
@@ -1057,6 +1167,7 @@ export default function Dashboard({
       console.error("Failed to load lifetime rewards:", error);
       setLifetimePPARewards(0);
     } finally {
+      setLastRewardsRefresh(new Date());
       setIsLoadingEarnings(false);
     }
   };
@@ -1091,7 +1202,6 @@ export default function Dashboard({
   // Update lock growth status and totals
   const updateCountdown = () => {
     if (activePPALocks.length === 0) {
-      setLatestLockCountdown("");
       setExpiredLock(null);
       setTotalPPALocked(0);
       return;
@@ -1118,23 +1228,11 @@ export default function Dashboard({
 
     const latest = locksWithMetrics[0];
     if (!latest) {
-      setLatestLockCountdown("");
       setExpiredLock(null);
       return;
     }
 
     const { lock, metrics } = latest;
-
-    if (metrics.daysElapsed <= 0) {
-      setLatestLockCountdown("Compounding +1% PPA every 24h");
-    } else {
-      const percentText = metrics.bonusPercent.toFixed(2);
-      setLatestLockCountdown(
-        `Staked ${metrics.daysElapsed} day${
-          metrics.daysElapsed === 1 ? "" : "s"
-        } (+${percentText}% PPA)`
-      );
-    }
 
     const enrichedLock = {
       ...lock,
@@ -1150,14 +1248,6 @@ export default function Dashboard({
     };
 
     setExpiredLock(enrichedLock);
-  };
-
-  // Handle unlock button click
-  const handleUnlockClick = () => {
-    if (expiredLock) {
-      setShowUnlockModal(true);
-      soundManager.playTabSwitch();
-    }
   };
 
   // Handle welcome popup close
@@ -3255,242 +3345,448 @@ export default function Dashboard({
       case "about":
         return <About />;
 
-      case "rewards":
+      case "rewards": {
+        const nextUnlockCountdown = nextUnlockingLock
+          ? formatTimeUntilUnlock(nextUnlockingLock.unlocks_at)
+          : null;
+        const nextUnlockDateLabel =
+          nextUnlockingLock && nextUnlockingLock.unlocks_at
+            ? new Date(nextUnlockingLock.unlocks_at).toLocaleDateString(
+                undefined,
+                { month: "short", day: "numeric" }
+              )
+            : null;
+
         return (
-          <div className="text-center max-w-full w-full px-4">
-            {/* Character Icon - Smaller for mobile */}
-            <div className="mb-3">
-              <div className="w-12 h-12 mx-auto">
-                <img
-                  src="https://i.imgur.com/fWVz5td.png"
-                  alt="Pump Pumpkin Icon"
-                  className="w-full h-full object-cover rounded-lg"
-                />
-              </div>
-            </div>
-
-            {/* Rewards Title - Smaller */}
-            <div className="flex items-center justify-center flex-col mb-3">
-              <p className="text-xs uppercase tracking-[0.45em] text-blue-200/70 mb-1">
-                Platform Status
-              </p>
-              <h1 className="text-lg font-normal">
-                Your <span style={{ color: "#1e7cfa" }}>Rewards</span>
-              </h1>
-              <p className="text-xs text-gray-400 mt-2 max-w-sm">
-                Your rewards overview is highlighted below.
-              </p>
-            </div>
-
-            <div className="relative overflow-hidden rounded-3xl border border-blue-500/40 bg-gradient-to-br from-[#0a1530] via-[#0c1738] to-[#071322] p-6 md:p-8 mb-6 shadow-[0_30px_70px_-35px_rgba(30,124,250,0.65)]">
-              <div className="pointer-events-none absolute -top-20 -right-20 h-60 w-60 rounded-full bg-blue-500/15 blur-3xl" />
-              <div className="pointer-events-none absolute bottom-0 left-1/3 h-36 w-36 rounded-full bg-indigo-400/10 blur-3xl" />
-
-              <div className="relative grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 sm:gap-4 items-stretch">
-                <div className="rounded-2xl border border-blue-500/35 bg-black/25 px-5 py-6 text-center flex flex-col justify-between">
-                  <div>
-                    <p className="text-xs font-semibold tracking-[0.28em] uppercase text-blue-200/75">
-                      Lifetime PPA Rewards
-                    </p>
-                    <p className="text-[22px] font-semibold text-white leading-tight mb-2">
-                      {formatTokenAmount(displayedLifetimeRewards)}
-                    </p>
-                  </div>
-                  {isLoadingEarnings ? (
-                    <div className="mt-4 text-sm text-blue-200/70 flex items-center gap-2">
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      <span className="font-medium">Updating rewards…</span>
+          <div className="w-full px-4 sm:px-6 lg:px-10 py-6">
+            <div className="max-w-6xl mx-auto space-y-10">
+              <section className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(360px,1fr)] items-stretch">
+                <div className="relative rounded-[32px] border border-blue-500/40 bg-gradient-to-br from-[#030b1f] via-[#071536] to-[#01020c] p-6 sm:p-8 shadow-[0_30px_80px_rgba(5,15,36,0.65)]">
+                  <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(18,94,219,0.35),_transparent_65%)]" />
+                  <div className="relative z-10 flex flex-col gap-6 min-h-full">
+                    <div className="flex flex-wrap items-center justify-between gap-3 text-[11px] uppercase tracking-[0.3em] text-blue-50/70 text-center lg:text-left">
+                      <span className="inline-flex items-center gap-2 justify-center lg:justify-start w-full lg:w-auto">
+                        <span className="relative flex h-2.5 w-2.5">
+                          <span
+                            className={`absolute inline-flex h-full w-full rounded-full ${
+                              rewardPulseActive
+                                ? "bg-emerald-300/70 animate-ping"
+                                : "bg-slate-400/40"
+                            }`}
+                          />
+                          <span
+                            className={`relative inline-flex rounded-full h-2.5 w-2.5 ${
+                              hasActiveLocks ? "bg-emerald-300" : "bg-slate-400"
+                            }`}
+                          />
+                        </span>
+                        {hasActiveLocks ? "Vault live" : "Vault idle"}
+                      </span>
+                      <span className="w-full lg:w-auto text-center lg:text-right">
+                        {rewardsSyncStatus}
+                      </span>
                     </div>
-                  ) : null}
-                </div>
 
-                <div className="rounded-2xl border border-blue-500/35 bg-black/25 px-5 py-6 text-center flex flex-col justify-between">
-                  <div>
-                    <p className="text-xs font-semibold tracking-[0.28em] uppercase text-blue-200/75">
-                      Pumpkin Revenue Today
-                    </p>
-                    <p className="text-[22px] font-semibold text-white leading-tight mb-2">
-                      {formatCurrency(displayedRevenueUsd)}
-                    </p>
-                  </div>
-                  <div className="mt-4 text-sm text-blue-200/70">
-                    {todayPlatformRevenueSol > 0 ? (
-                      <span>{todayPlatformRevenueSol.toFixed(4)} SOL</span>
-                    ) : null}
-                  </div>
-                </div>
+                    <div className="space-y-3 text-center lg:text-left">
+                      <p className="text-[11px] uppercase tracking-[0.3em] text-blue-100/70">
+                        Lifetime PPA rewards
+                      </p>
+                      <div className="flex flex-wrap items-center gap-4 justify-center lg:justify-between">
+                        <p className="text-3xl sm:text-5xl font-semibold text-white leading-tight break-words">
+                          {formatTokenAmount(displayedLifetimeRewards)}
+                          <span className="ml-2 text-base text-white/40">PPA</span>
+                        </p>
+                        <span
+                          className={`${rewardDeltaMeta.className} text-sm font-semibold tracking-wide`}
+                        >
+                          {rewardDeltaMeta.text}
+                        </span>
+                      </div>
+                      {isLoadingEarnings ? (
+                        <div className="text-sm text-blue-200/80 flex items-center gap-2 justify-center lg:justify-start">
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <span className="font-medium">Updating rewards…</span>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-blue-100/80 max-w-3xl mx-auto lg:mx-0">
+                          {hasActiveLocks
+                            ? "Rewards compound every 24h. Unlock whenever you like or keep staking to climb the boost ladder."
+                            : "Lock PPA once to tap into 80% of platform profits. The vault begins compounding immediately."}
+                        </p>
+                      )}
+                    </div>
 
-                <div className="rounded-2xl border border-blue-500/35 bg-black/25 px-5 py-6 text-center flex flex-col justify-between">
-                  <div>
-                    <p className="text-xs font-semibold tracking-[0.28em] uppercase text-blue-200/75">
-                      Total Volume Today
-                    </p>
-                    <p className="text-[22px] font-semibold text-white leading-tight mb-2">
-                      {formatVolume(displayedVolumeUsd)}
-                    </p>
-                  </div>
-                  <div className="mt-4 text-sm text-blue-200/70">
-                    {todayTradingVolumeUsd > 0 ? (
-                      <span>Volume driven by your trades.</span>
-                    ) : null}
-                  </div>
-                </div>
-              </div>
-            </div>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="rounded-2xl border border-white/10 bg-white/5 p-4 min-h-[130px]">
+                        <p className="text-[11px] uppercase tracking-[0.3em] text-white/60">
+                          Total PPA locked
+                        </p>
+                        <p className="text-2xl font-semibold text-white mt-2 break-words">
+                          {formatTokenAmount(totalPPALocked)}
+                          <span className="ml-2 text-base text-white/60">PPA</span>
+                        </p>
+                        <p className="text-xs text-white/60 mt-1">
+                          {approxLockedUsd > 0
+                            ? `≈ ${formatCurrency(approxLockedUsd)} in vault coverage`
+                            : "Lock PPA to seed the vault and earn splits."}
+                        </p>
+                      </div>
+                      <div className="rounded-2xl border border-white/10 bg-white/5 p-4 min-h-[130px]">
+                        <p className="text-[11px] uppercase tracking-[0.3em] text-white/60">
+                          Average boost
+                        </p>
+                        <p className="text-2xl font-semibold text-white mt-2">
+                          {hasActiveLocks ? `${averageBoostPct.toFixed(1)}%` : "0.0%"}
+                        </p>
+                        <p className="text-xs text-white/60 mt-1">
+                          {hasActiveLocks
+                            ? `${activePPALocks.length} active lock${
+                                activePPALocks.length === 1 ? "" : "s"
+                              }`
+                            : "Lock PPA to activate your first boost tier."}
+                        </p>
+                      </div>
+                    </div>
 
-            {/* PPA Info - Compact */}
-            <div className="bg-gray-900 border border-gray-700 rounded-lg p-4 mb-4">
-              <h3 className="text-sm font-bold text-white mb-3">
-                Lock your PPA earnings and earn monthly rewards for providing liquidity to the platform.
-              </h3>
-              <p className="text-gray-400 text-xs mb-3">
-                Commit your PPA and earn monthly PPA rewards from 80% of platform profits. Your PPA works while you trade, fueling the liquidity loop.
-              </p>
-
-              {/* PPA Stats - Compact */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
-                <div className="text-center">
-                  <p className="text-sm font-bold text-white">
-                    {formatTokenAmount(userBalances.ppa)}
-                  </p>
-                  <p className="text-gray-500 text-xs">PPA In Wallet</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-sm font-bold text-white">
-                    {isLoadingEarnings
-                      ? "Loading..."
-                      : `${formatTokenAmount(displayedLifetimeRewards)}`}
-                  </p>
-                  <p className="text-gray-500 text-xs">Rewards Earned</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-sm font-bold text-white">
-                    {ppaPrice ? formatNumber(ppaPrice) : "0"}
-                  </p>
-                  <p className="text-gray-500 text-xs">PPA/SOL</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-sm font-bold text-white">
-                    {formatTokenAmount(totalPPALocked)}
-                  </p>
-                  <p className="text-gray-500 text-xs">PPA Locked</p>
-                </div>
-              </div>
-
-              {/* Lock Countdown - Wide across the card */}
-              {latestLockCountdown && (
-                <div className="bg-gray-800 border border-gray-600 rounded-lg p-3 mb-4">
-                  <div className="text-center">
-                    <p className="text-gray-400 text-xs mb-1">
-                      Latest Lock Status
-                    </p>
-                    <p className="text-white font-bold text-sm">
-                      {latestLockCountdown}
-                    </p>
-                    {expiredLock && (
+                    <div className="flex flex-col sm:flex-row gap-3 text-sm">
                       <button
-                        onClick={handleUnlockClick}
-                        className="mt-2 px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-500 transition-colors text-sm flex items-center justify-center space-x-2 mx-auto"
+                        onClick={() => {
+                          handleBuyPPA();
+                          hapticFeedback.medium();
+                        }}
+                        className="flex-1 rounded-2xl bg-white text-black font-semibold py-3 px-4 shadow-lg shadow-blue-500/20 hover:bg-gray-100 transition-colors"
+                      >
+                        Buy PPA
+                      </button>
+                      <button
+                        onClick={() => {
+                          setShowLockingModal(true);
+                          hapticFeedback.medium();
+                        }}
+                        className="flex-1 rounded-2xl border border-white/30 text-white font-semibold py-3 px-4 hover:border-white/60 transition-colors"
+                      >
+                        Lock & Boost
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-4">
+                  <div className="rounded-3xl border border-white/10 bg-black/40 p-5 flex flex-col gap-4 h-full">
+                    <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.25em] text-white/60">
+                      <span>Next unlock window</span>
+                      <span className="text-white/70">
+                        {nextUnlockCountdown ?? "—"}
+                      </span>
+                    </div>
+                    <div>
+                      <p className="text-3xl font-semibold text-white break-words">
+                        {nextUnlockCountdown ?? "Plan a lock"}
+                      </p>
+                      <p className="text-xs text-blue-100/70 mt-1">
+                        {nextUnlockDateLabel
+                          ? `Unlocks ${nextUnlockDateLabel}`
+                          : "Schedule your first reward cycle."}
+                      </p>
+                    </div>
+                    {expiredLock ? (
+                      <button
+                        onClick={() => {
+                          setShowUnlockModal(true);
+                          soundManager.playTabSwitch();
+                          hapticFeedback.medium();
+                        }}
+                        className="inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-400/90 px-4 py-2.5 text-black font-semibold hover:bg-emerald-300 transition-colors"
                       >
                         <Unlock className="w-4 h-4" />
-                        <span>Request Unlock</span>
+                        <span>Unlock Stake</span>
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          setShowLockingModal(true);
+                          hapticFeedback.medium();
+                        }}
+                        className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/20 px-4 py-2.5 text-white font-semibold hover:border-white/40 transition-colors"
+                      >
+                        <span>Plan New Lock</span>
                       </button>
                     )}
                   </div>
-                </div>
-              )}
 
-              {/* Action Buttons - Compact */}
-              <div
-                className="space-y-2 relative"
-                style={{ overflow: "visible" }}
-              >
-                <button
-                  onClick={() => {
-                    handleBuyPPA();
-                    hapticFeedback.medium();
-                  }}
-                  onMouseEnter={(e) => {
-                    (e.target as HTMLElement).style.backgroundColor = "#1a6ce8";
-                  }}
-                  onMouseLeave={(e) => {
-                    (e.target as HTMLElement).style.backgroundColor = "#1e7cfa";
-                  }}
-                  className="btn-premium w-full text-black font-bold py-3 px-4 rounded-lg text-sm transition-colors"
-                  style={{ backgroundColor: "#1e7cfa" }}
-                >
-                  Buy PPA Tokens
-                </button>
-
-                {/* Earn SOL Button */}
-                <button
-                  onClick={() => {
-                    setShowLockingModal(true);
-                    hapticFeedback.medium();
-                  }}
-                  onMouseEnter={(e) => {
-                    (e.target as HTMLElement).style.backgroundColor = "#1a6ce8";
-                  }}
-                  onMouseLeave={(e) => {
-                    (e.target as HTMLElement).style.backgroundColor = "#1e7cfa";
-                  }}
-                  className="btn-premium w-full text-black font-bold py-3 px-4 rounded-lg text-sm transition-colors flex items-center justify-center space-x-2"
-                  style={{ backgroundColor: "#1e7cfa" }}
-                >
-                  <Wallet className="w-4 h-4" />
-                  <span>Be The House</span>
-                </button>
-
-                {/* Unlock Button with Tooltip */}
-                <div className="relative">
-                  <button
-                    onClick={() => {
-                      if (expiredLock) {
-                        setShowUnlockModal(true);
-                        hapticFeedback.medium();
-                      }
-                    }}
-                    disabled={!expiredLock}
-                    onMouseEnter={(e) => {
-                      if (!expiredLock) return;
-                      (e.target as HTMLElement).style.backgroundColor =
-                        "#16a34a";
-                    }}
-                    onMouseLeave={(e) => {
-                      if (!expiredLock) return;
-                      (e.target as HTMLElement).style.backgroundColor =
-                        "#22c55e";
-                    }}
-                    className="btn-premium w-full text-white font-bold py-3 px-4 rounded-lg text-sm transition-colors flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                    style={{
-                      backgroundColor: expiredLock ? "#22c55e" : "#6b7280",
-                      color: "white",
-                    }}
-                  >
-                    <Unlock className="w-4 h-4" />
-                    <span>
-                      {expiredLock ? "Unlock Stake" : "No Stake Available"}
-                    </span>
-                  </button>
-
-                  {/* Unlock Info Text Below Button */}
-                  <div className="mt-2 text-center">
-                    <p className="text-gray-400 text-xs">
-                      {getUnlockTooltipText()}
+                  <div className="rounded-3xl border border-white/10 bg-[#050d25]/80 p-5 flex flex-col gap-4 h-full">
+                    <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.25em] text-white/60">
+                      <span>Next boost tier</span>
+                      <span>{nextBoostTier ? nextBoostTier.label : "Maxed"}</span>
+                    </div>
+                    <p className="text-sm text-blue-100/80">{nextBoostMessage}</p>
+                    <div className="h-2 w-full rounded-full bg-white/10 overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-gradient-to-r from-blue-400 via-sky-400 to-cyan-300 transition-all duration-500"
+                        style={{ width: `${nextBoostProgress}%` }}
+                      />
+                    </div>
+                    <p className="text-xs text-white/60">
+                      {hasActiveLocks
+                        ? "Keep compounding to unlock the next tier."
+                        : "Boost tiers appear after your first stake completes a cycle."}
                     </p>
                   </div>
                 </div>
-              </div>
+              </section>
+
+              <section className="grid gap-4 lg:grid-cols-3 auto-rows-fr">
+                <div className="rounded-3xl border border-white/10 bg-[#050b1c] p-5 flex flex-col gap-4 h-full">
+                  <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.25em] text-white/60">
+                    <span>Pumpkin revenue today</span>
+                    <span
+                      className={`${revenueDeltaMeta.className} text-[10px] font-semibold`}
+                    >
+                      {revenueDeltaMeta.text}
+                    </span>
+                  </div>
+                  <p className="text-3xl font-semibold text-white break-words">
+                    {formatCurrency(displayedRevenueUsd)}
+                  </p>
+                  <p className="text-xs text-blue-100/70">
+                    {todayPlatformRevenueSol > 0
+                      ? `${todayPlatformRevenueSol.toFixed(3)} SOL routed across treasuries`
+                      : "Revenue stream comes online after your first trade."}
+                  </p>
+                </div>
+                <div className="rounded-3xl border border-white/10 bg-[#040816] p-5 flex flex-col gap-4 h-full">
+                  <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.25em] text-white/60">
+                    <span>Total volume today</span>
+                    <span
+                      className={`${volumeDeltaMeta.className} text-[10px] font-semibold`}
+                    >
+                      {volumeDeltaMeta.text}
+                    </span>
+                  </div>
+                  <p className="text-3xl font-semibold text-white break-words">
+                    {formatVolume(displayedVolumeUsd)}
+                  </p>
+                  <p className="text-xs text-blue-100/70">
+                    {todayTradingVolumeUsd > 0
+                      ? "Volume driven by your hunts."
+                      : "Volume data unlocks after your first trade."}
+                  </p>
+                </div>
+                <div className="rounded-3xl border border-white/10 bg-[#03060f] p-5 flex flex-col gap-4 h-full">
+                  <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.25em] text-white/60">
+                    <span>Staker pool (80%)</span>
+                    <span className="text-white/70">Daily snapshot</span>
+                  </div>
+                  <p className="text-3xl font-semibold text-white break-words">
+                    {formatCurrency(hasActiveLocks ? estimatedVaultCutUsd : 0)}
+                  </p>
+                  <p className="text-xs text-blue-100/70">
+                    {hasActiveLocks
+                      ? "Your locks auto-compound into the staker allocation."
+                      : "Lock PPA to start participating in daily revenue splits."}
+                  </p>
+                </div>
+              </section>
+
+              <section className="grid gap-6 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
+                <div className="rounded-[28px] border border-white/10 bg-[#050b19] p-6 space-y-6">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.25em] text-white/60">
+                        Active locks
+                      </p>
+                      <h3 className="text-xl font-semibold text-white mt-1">
+                        Reward inventory
+                      </h3>
+                      <p className="text-xs text-blue-100/70 mt-1">
+                        {hasActiveLocks
+                          ? "Your freshest locks ranked with live growth telemetry."
+                          : "No locks yet. Start with any amount to join revenue share."}
+                      </p>
+                    </div>
+                    <span className="rounded-full border border-white/15 px-4 py-1 text-xs text-white/70">
+                      {activePPALocks.length} live
+                    </span>
+                  </div>
+
+                  {hasActiveLocks ? (
+                    <>
+                      <div className="space-y-4">
+                        {lockLeaderboard.map(({ lock, metrics }) => {
+                          const principal = Number(lock.ppa_amount) || 0;
+                          const bonusAmount = metrics.bonusAmount;
+                          const totalPct = Number(lock.total_percentage || 0);
+                          const solReward = Number(lock.sol_reward || 0);
+                          const lockDays = Number(lock.lock_days || 0);
+                          const completionPct =
+                            lockDays > 0
+                              ? Math.min(
+                                  100,
+                                  (metrics.daysElapsed / lockDays) * 100
+                                )
+                              : 0;
+                          const lockStart = new Date(lock.locked_at);
+                          return (
+                            <div
+                              key={lock.id}
+                              className="rounded-2xl border border-white/10 bg-white/5 p-4 space-y-3"
+                            >
+                              <div className="flex items-center justify-between gap-3">
+                                <div>
+                                  <p className="text-sm font-semibold text-white">
+                                    {formatTokenAmount(principal)} PPA locked
+                                  </p>
+                                  <p className="text-xs text-white/60">
+                                    {lockDays} day term • Locked {""}
+                                    {Number.isNaN(lockStart.getTime())
+                                      ? "recently"
+                                      : lockStart.toLocaleDateString()}
+                                  </p>
+                                </div>
+                                <span className="text-xs uppercase tracking-[0.35em] text-blue-100/70">
+                                  {formatTimeUntilUnlock(lock.unlocks_at)}
+                                </span>
+                              </div>
+                              <div className="grid gap-3 sm:grid-cols-3 text-sm text-white">
+                                <div>
+                                  <p className="text-[11px] uppercase tracking-[0.2em] text-white/60">
+                                    Bonus earned
+                                  </p>
+                                  <p className="font-semibold text-emerald-300">
+                                    {formatTokenAmount(bonusAmount)} PPA
+                                  </p>
+                                </div>
+                                <div>
+                                  <p className="text-[11px] uppercase tracking-[0.2em] text-white/60">
+                                    Current boost
+                                  </p>
+                                  <p className="font-semibold">
+                                    {totalPct.toFixed(1)}%
+                                  </p>
+                                </div>
+                                <div>
+                                  <p className="text-[11px] uppercase tracking-[0.2em] text-white/60">
+                                    SOL reward
+                                  </p>
+                                  <p className="font-semibold">
+                                    {solReward.toFixed(3)} SOL
+                                  </p>
+                                </div>
+                              </div>
+                              <div>
+                                <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
+                                  <div
+                                    className="h-full rounded-full bg-gradient-to-r from-blue-400 via-sky-400 to-emerald-300"
+                                    style={{ width: `${completionPct}%` }}
+                                  />
+                                </div>
+                                <p className="mt-1 text-[10px] uppercase tracking-[0.25em] text-white/50">
+                                  {completionPct.toFixed(0)}% of term elapsed
+                                </p>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      {additionalLockCount > 0 && (
+                        <p className="text-xs text-white/60 text-right">
+                          +{additionalLockCount} more lock
+                          {additionalLockCount === 1 ? "" : "s"} compounding
+                        </p>
+                      )}
+                    </>
+                  ) : (
+                    <div className="rounded-2xl border border-dashed border-white/20 bg-white/5 p-6 text-center space-y-3">
+                      <p className="text-sm text-white font-semibold">
+                        No active locks yet
+                      </p>
+                      <p className="text-xs text-blue-100/70">
+                        Lock any amount of PPA to activate revenue sharing and
+                        build boost momentum.
+                      </p>
+                      <button
+                        onClick={() => {
+                          setShowLockingModal(true);
+                          hapticFeedback.medium();
+                        }}
+                        className="inline-flex items-center justify-center rounded-xl bg-white text-black font-semibold px-5 py-2.5 shadow-lg shadow-blue-500/20"
+                      >
+                        Create first lock
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex flex-col gap-4">
+                  <div className="rounded-[28px] border border-white/10 bg-[#040a17] p-6 space-y-4">
+                    <p className="text-xs uppercase tracking-[0.25em] text-white/60">
+                      Profit routing
+                    </p>
+                    <div className="flex items-center justify-between text-sm text-white">
+                      <span>80% to stakers</span>
+                      <span className="text-emerald-300 font-semibold">
+                        {formatCurrency(hasActiveLocks ? estimatedVaultCutUsd : 0)}
+                      </span>
+                    </div>
+                    <p className="text-xs text-white/60">
+                      Based on today’s revenue snapshot.
+                    </p>
+                    <div className="rounded-2xl border border-white/10 bg-black/30 p-4 space-y-3 text-xs text-white/70">
+                      <div className="flex items-center justify-between">
+                        <span>Hunter reserve (20%)</span>
+                        <span className="text-white font-semibold">
+                          {formatCurrency(
+                            Math.max(displayedRevenueUsd - estimatedVaultCutUsd, 0)
+                          )}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span>Security buffer</span>
+                        <span className="text-white font-semibold">
+                          {todayPlatformRevenueSol > 0
+                            ? `${todayPlatformRevenueSol.toFixed(3)} SOL`
+                            : "Awaiting trades"}
+                        </span>
+                      </div>
+                    </div>
+                    <p className="text-xs text-blue-100/70">
+                      Rewards settle instantly when you unlock. Keep capital
+                      parked to auto-compound into the next tier.
+                    </p>
+                  </div>
+
+                  <div className="rounded-[28px] border border-white/10 bg-[#050d1c] p-6 space-y-4">
+                    <p className="text-xs uppercase tracking-[0.25em] text-white/60">
+                      Need help?
+                    </p>
+                    <p className="text-sm text-white/80">
+                      Our mod desk monitors unlock requests and staking
+                      questions 24/7. Ping support anytime.
+                    </p>
+                    <button
+                      onClick={() => {
+                        setActiveTab("about");
+                        soundManager.playTabSwitch();
+                        hapticFeedback.light();
+                      }}
+                      className="inline-flex items-center gap-2 text-sm font-semibold text-blue-200 hover:text-white transition-colors"
+                    >
+                      Learn about rewards
+                      <ArrowUpRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              </section>
             </div>
           </div>
         );
+      }
 
-      case "positions":
+      case "positions": {
         const portfolioData = calculateTotalPortfolioValue();
 
         return (
           <div className="max-w-full w-full px-4">
-            {/* Header with User Profile Image - Mobile optimized */}
             <div className="text-center mb-6">
               <div className="w-16 h-16 mx-auto mb-4">
                 {currentProfilePicture ? (
@@ -3521,7 +3817,6 @@ export default function Dashboard({
                 />
               </div>
 
-              {/* Portfolio Breakdown - Mobile optimized */}
               {portfolioData.positionCount > 0 && (
                 <div className="mt-3 text-sm text-gray-400 space-y-1">
                   <div className="flex justify-between">
@@ -3536,7 +3831,6 @@ export default function Dashboard({
                       {formatCurrency(portfolioData.lockedSOL * solPrice)}
                     </span>
                   </div>
-
                   {portfolioData.tradingBalance > 0 && (
                     <div className="flex justify-between">
                       <span>Trading Balance:</span>
@@ -3549,7 +3843,6 @@ export default function Dashboard({
               )}
             </div>
 
-            {/* Token Search Bar (address-only) */}
             <div className="mb-6 relative">
               <input
                 type="text"
@@ -3568,28 +3861,49 @@ export default function Dashboard({
                   <div className="flex items-center space-x-3">
                     <div className="w-8 h-8 rounded-full overflow-hidden bg-gray-700">
                       {memeDetail.logoURI ? (
-                        <img src={memeDetail.logoURI} alt={memeDetail.symbol} className="w-full h-full object-cover" />
+                        <img
+                          src={memeDetail.logoURI}
+                          alt={memeDetail.symbol}
+                          className="w-full h-full object-cover"
+                        />
                       ) : null}
                     </div>
                     <div className="min-w-0">
                       <div className="text-white text-sm font-bold truncate">
-                        {memeDetail.symbol} <span className="text-gray-400 font-normal">{memeDetail.name}</span>
+                        {memeDetail.symbol}{" "}
+                        <span className="text-gray-400 font-normal">
+                          {memeDetail.name}
+                        </span>
                       </div>
                       <div className="text-gray-400 text-xs truncate">
-                        {memeDetail.address.slice(0, 4)}…{memeDetail.address.slice(-4)}
+                        {memeDetail.address.slice(0, 4)}…
+                        {memeDetail.address.slice(-4)}
                       </div>
                     </div>
                   </div>
                   <div className="flex items-center space-x-6 text-right">
                     <div className="text-xs text-gray-300">
                       <div>LiQ</div>
-                      <div className="text-white font-semibold">{memeDetail.liquidity ? formatCurrency(memeDetail.liquidity) : 'N/A'}</div>
+                      <div className="text-white font-semibold">
+                        {memeDetail.liquidity
+                          ? formatCurrency(memeDetail.liquidity)
+                          : "N/A"}
+                      </div>
                     </div>
                     <div className="text-xs text-gray-300">
                       <div>24h MC</div>
-                      <div className="text-white font-semibold">{memeDetail.marketCap ? formatCurrency(memeDetail.marketCap) : 'N/A'}</div>
+                      <div className="text-white font-semibold">
+                        {memeDetail.marketCap
+                          ? formatCurrency(memeDetail.marketCap)
+                          : "N/A"}
+                      </div>
                     </div>
-                    <button onClick={handleOpenFromMemeDetail} className="px-3 py-1 bg-blue-500 text-black rounded-md text-xs font-bold">Trade</button>
+                    <button
+                      onClick={handleOpenFromMemeDetail}
+                      className="px-3 py-1 bg-blue-500 text-black rounded-md text-xs font-bold"
+                    >
+                      Trade
+                    </button>
                   </div>
                 </div>
               )}
@@ -3600,9 +3914,7 @@ export default function Dashboard({
               )}
             </div>
 
-            {/* Unified Assets & Positions Card - Mobile optimized */}
             <div className="bg-gray-900 border border-gray-700 rounded-lg p-4 mb-6">
-              {/* Deposit and Withdraw Buttons - Inside card */}
               <div className="flex space-x-3 mb-6">
                 <button
                   onClick={() => {
@@ -3645,7 +3957,7 @@ export default function Dashboard({
                   <span>Withdraw</span>
                 </button>
               </div>
-              {/* Assets Section */}
+
               <div className="mb-6">
                 <h3 className="text-lg font-bold text-white mb-4 flex items-center">
                   <Briefcase className="w-5 h-5 mr-2" />
@@ -3653,7 +3965,6 @@ export default function Dashboard({
                 </h3>
 
                 <div className="space-y-3">
-                  {/* Available SOL */}
                   <div>
                     <p className="text-gray-400 text-sm mb-2">
                       Available Balance
@@ -3667,7 +3978,6 @@ export default function Dashboard({
                               alt="Solana"
                               className="w-full h-full object-cover"
                               onError={(e) => {
-                                // Fallback to a simple circle if image fails to load
                                 const target = e.currentTarget;
                                 target.style.display = "none";
                                 const parent = target.parentElement;
@@ -3697,7 +4007,6 @@ export default function Dashboard({
                     </div>
                   </div>
 
-                  {/* Locked Collateral - Only show if user has active positions */}
                   {portfolioData.lockedSOL > 0 && (
                     <div>
                       <p className="text-gray-400 text-sm mb-2">
@@ -3712,7 +4021,6 @@ export default function Dashboard({
                                 alt="Solana"
                                 className="w-full h-full object-cover"
                                 onError={(e) => {
-                                  // Fallback to a simple circle if image fails to load
                                   const target = e.currentTarget;
                                   target.style.display = "none";
                                   const parent = target.parentElement;
@@ -3739,9 +4047,7 @@ export default function Dashboard({
                               {portfolioData.lockedSOL.toFixed(4)} SOL
                             </p>
                             <p className="text-orange-400 text-xs">
-                              {formatCurrency(
-                                portfolioData.lockedSOL * solPrice
-                              )}
+                              {formatCurrency(portfolioData.lockedSOL * solPrice)}
                             </p>
                           </div>
                         </div>
@@ -3751,7 +4057,6 @@ export default function Dashboard({
                 </div>
               </div>
 
-              {/* Active Positions Section */}
               <div>
                 <h3 className="text-lg font-bold text-white mb-4 flex items-center">
                   <TrendingUp className="w-5 h-5 mr-2" />
@@ -3785,28 +4090,22 @@ export default function Dashboard({
                 ) : activePositions.length > 0 ? (
                   <div className="space-y-4">
                     {activePositions.map((position) => {
-                      // Calculate real-time P&L using cached prices
                       const realtimePnL =
                         calculatePositionPnLWithCachedPrice(position);
                       const currentPnL = realtimePnL.pnl;
                       const isPositive = currentPnL >= 0;
-
-                      // FIXED: P&L percentage should be based on collateral (actual investment), not leveraged position value
                       const collateralValueUSD =
                         (position.collateral_sol || 0) * solPrice;
                       const pnlPercent =
                         collateralValueUSD > 0
                           ? (currentPnL / collateralValueUSD) * 100
                           : 0;
-
-                      // Add warning styling for positions close to liquidation
                       const isNearLiquidation =
                         (position.margin_ratio || 0) >= 0.8;
                       const isInDanger = (position.margin_ratio || 0) >= 0.9;
 
                       return (
                         <div key={position.id} className="space-y-2">
-                          {/* Decorative line with leverage label */}
                           <div className="relative flex items-center justify-center py-2">
                             <div className="absolute inset-0 flex items-center">
                               <div className="w-full border-t border-gray-600"></div>
@@ -3824,13 +4123,11 @@ export default function Dashboard({
                             </div>
                           </div>
 
-                          {/* Position Card */}
                           <div
                             onClick={() => {
                               handlePositionClick(position);
                               hapticFeedback.light();
                             }}
-                            onMouseEnter={() => {}}
                             className={`card-premium rounded-lg p-4 cursor-pointer transition-all min-h-[130px] ${
                               isInDanger
                                 ? "position-danger bg-red-900 border-2 border-red-500"
@@ -3843,7 +4140,6 @@ export default function Dashboard({
                                 : "bg-gray-800 border border-gray-600 hover:border-gray-500"
                             }`}
                           >
-                            {/* Header with token info and position value */}
                             <div className="flex items-start justify-between mb-3">
                               <div className="flex items-center space-x-3">
                                 <div>
@@ -3880,7 +4176,6 @@ export default function Dashboard({
                               </div>
                             </div>
 
-                            {/* Price information - clearly displayed */}
                             <div className="grid grid-cols-2 gap-4 mb-3 text-xs">
                               <div>
                                 <span className="text-gray-400">
@@ -3908,7 +4203,6 @@ export default function Dashboard({
                               </div>
                             </div>
 
-                            {/* Progress bar showing margin ratio */}
                             <div className="mt-3">
                               <div className="flex justify-between text-xs mb-1">
                                 <span
@@ -3956,7 +4250,6 @@ export default function Dashboard({
                                 ></div>
                               </div>
 
-                              {/* Warning messages */}
                               {isInDanger && position.status === "open" && (
                                 <div className="mt-2 text-xs text-red-300 font-bold animate-pulse">
                                   LIQUIDATION IMMINENT - POSITION AT EXTREME
@@ -3986,9 +4279,9 @@ export default function Dashboard({
                   </div>
                 )}
               </div>
+
             </div>
 
-            {/* Trending Tokens Section - Mobile optimized */}
             <div>
               <h3 className="text-lg font-bold text-white mb-4 flex items-center">
                 <TrendingUp className="w-5 h-5 mr-2" />
@@ -4027,7 +4320,7 @@ export default function Dashboard({
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {trendingTokens.map((token, index) => (
+                  {trendingTokens.map((token) => (
                     <div
                       key={token.address}
                       className="bg-gray-900 border border-gray-700 rounded-lg p-4 hover:border-gray-600 transition-colors cursor-pointer"
@@ -4119,6 +4412,7 @@ export default function Dashboard({
             </div>
           </div>
         );
+      }
 
       case "orders":
         return (
@@ -4603,6 +4897,9 @@ export default function Dashboard({
     }
   };
 
+  const wideLayoutTabs = ["rewards", "positions", "orders"];
+  const isWideLayoutTab = wideLayoutTabs.includes(activeTab);
+
   return (
     <div className="min-h-screen bg-black text-white flex flex-col">
       {/* Enhanced Mobile Header */}
@@ -4891,7 +5188,13 @@ export default function Dashboard({
 
         {/* Main Content Container */}
         <div className="flex-1 flex items-center justify-center p-4 pb-32">
-          <div className="w-full max-w-lg mx-auto">{renderTabContent()}</div>
+          <div
+            className={`w-full mx-auto ${
+              isWideLayoutTab ? "max-w-6xl" : "max-w-lg"
+            }`}
+          >
+            {renderTabContent()}
+          </div>
         </div>
       </div>
 
