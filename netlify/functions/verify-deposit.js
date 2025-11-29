@@ -142,12 +142,13 @@ exports.handler = async (event) => {
 
     // Check pre/post balances to confirm transfer
     const accountKeys = tx.transaction.message.getAccountKeys();
-    const platformIndex = accountKeys.staticAccountKeys.findIndex(
-      (key) => key.equals(platformPubkey)
+    const lookupKeys = accountKeys.lookupTableAccountKeys ?? [];
+    const combinedKeys = accountKeys.staticAccountKeys.concat(lookupKeys);
+
+    const platformIndex = combinedKeys.findIndex((key) =>
+      key.equals(platformPubkey)
     );
-    const userIndex = accountKeys.staticAccountKeys.findIndex(
-      (key) => key.equals(userPubkey)
-    );
+    const userIndex = combinedKeys.findIndex((key) => key.equals(userPubkey));
 
     if (platformIndex === -1 || userIndex === -1) {
       return {
@@ -159,17 +160,58 @@ exports.handler = async (event) => {
     const preBalances = tx.meta.preBalances;
     const postBalances = tx.meta.postBalances;
 
-    const platformReceived = (postBalances[platformIndex] - preBalances[platformIndex]) / LAMPORTS_PER_SOL;
-    const userSent = (preBalances[userIndex] - postBalances[userIndex]) / LAMPORTS_PER_SOL;
+    const platformReceived =
+      (postBalances[platformIndex] - preBalances[platformIndex]) /
+      LAMPORTS_PER_SOL;
+    const userSent =
+      (preBalances[userIndex] - postBalances[userIndex]) / LAMPORTS_PER_SOL;
 
-    console.log(`Platform received: ${platformReceived} SOL, User sent: ${userSent} SOL`);
+    console.log(
+      `Platform received: ${platformReceived} SOL, User sent: ${userSent} SOL`
+    );
 
-    // Verify amount (allow small fee variance)
-    if (platformReceived < amount * 0.99 || userSent < amount * 0.99) {
+    let platformSatisfied = platformReceived >= amount * 0.99;
+    let userSatisfied = userSent >= amount * 0.99;
+
+    if (!platformSatisfied || !userSatisfied) {
+      console.warn(
+        "Primary balance check failed, running parsed instruction fallback..."
+      );
+      const parsedTx = await connection.getParsedTransaction(txid, {
+        maxSupportedTransactionVersion: 0,
+      });
+
+      if (parsedTx?.transaction?.message?.instructions?.length) {
+        const fallbackLamports = parsedTx.transaction.message.instructions
+          .filter(
+            (ix) =>
+              ix.program === "system" &&
+              ix.parsed?.type === "transfer" &&
+              ix.parsed?.info?.destination === platformWalletToVerify
+          )
+          .reduce((sum, ix) => {
+            const lamports = Number(ix.parsed?.info?.lamports ?? 0);
+            return sum + (Number.isFinite(lamports) ? lamports : 0);
+          }, 0);
+
+        if (fallbackLamports > 0) {
+          const fallbackSOL = fallbackLamports / LAMPORTS_PER_SOL;
+          console.log(
+            `Fallback parser detected ${fallbackSOL} SOL transferred to ${platformWalletToVerify}`
+          );
+          platformSatisfied = fallbackSOL >= amount * 0.99;
+          userSatisfied = true;
+        }
+      }
+    }
+
+    if (!platformSatisfied || !userSatisfied) {
       return {
         statusCode: 400,
         body: JSON.stringify({
-          error: `Amount mismatch. Expected ~${amount} SOL, platform received ${platformReceived.toFixed(4)} SOL`,
+          error: `Amount mismatch. Expected ~${amount} SOL (platform saw ${platformReceived.toFixed(
+            4
+          )} SOL, user ${userSent.toFixed(4)} SOL)`,
         }),
       };
     }
