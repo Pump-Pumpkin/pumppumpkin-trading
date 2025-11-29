@@ -1,5 +1,5 @@
-import React from "react";
-import { Link } from "react-router-dom";
+import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Rocket,
   Shield,
@@ -45,9 +45,59 @@ const metrics = [
   { label: "Trending Tokens Indexed", value: "50,000+" },
 ];
 
+const BETA_ACCESS_PASS =
+  (import.meta.env.VITE_BETA_ACCESS_PASS as string | undefined)?.trim() ||
+  "PUMPKINACCESS";
+
 const LandingPage: React.FC = () => {
+  const navigate = useNavigate();
+  const [isBetaModalOpen, setIsBetaModalOpen] = useState(false);
+  const [betaPassword, setBetaPassword] = useState("");
+  const [betaError, setBetaError] = useState<string | null>(null);
+  const [isVerifyingBeta, setIsVerifyingBeta] = useState(false);
+
+  const openBetaModal = () => {
+    setBetaError(null);
+    setBetaPassword("");
+    setIsBetaModalOpen(true);
+  };
+
+  const closeBetaModal = () => {
+    if (isVerifyingBeta) return;
+    setIsBetaModalOpen(false);
+    setBetaPassword("");
+    setBetaError(null);
+  };
+
+  const handleBetaSubmit = (event?: React.FormEvent) => {
+    event?.preventDefault();
+    if (!betaPassword.trim()) {
+      setBetaError("Enter the beta access passphrase to continue.");
+      return;
+    }
+
+    setIsVerifyingBeta(true);
+    const normalizedExpected = BETA_ACCESS_PASS.trim().toLowerCase();
+    const normalizedInput = betaPassword.trim().toLowerCase();
+
+    setTimeout(() => {
+      if (normalizedInput === normalizedExpected) {
+        setIsBetaModalOpen(false);
+        setIsVerifyingBeta(false);
+        setBetaPassword("");
+        setBetaError(null);
+        navigate("/trading");
+        return;
+      }
+
+      setIsVerifyingBeta(false);
+      setBetaError("Invalid beta code. Ping the team if you need access.");
+    }, 700);
+  };
+
   return (
-    <div className="min-h-screen bg-black text-white overflow-hidden">
+    <>
+      <div className="min-h-screen bg-black text-white overflow-hidden">
       {/* Hero */}
       <div className="relative bg-gradient-to-b from-blue-900/40 via-black to-black">
         <div className="absolute inset-0">
@@ -91,12 +141,13 @@ const LandingPage: React.FC = () => {
               >
                 Docs
               </a>
-              <Link
-                to="/trading"
+              <button
+                type="button"
+                onClick={openBetaModal}
                 className="bg-blue-500 text-black font-semibold px-5 py-2 rounded-lg shadow-lg shadow-blue-500/20 hover:bg-blue-400 transition-colors text-center"
               >
                 Enter Trading
-              </Link>
+              </button>
             </nav>
           </div>
         </header>
@@ -125,13 +176,14 @@ const LandingPage: React.FC = () => {
               </div>
 
               <div className="flex flex-col sm:flex-row items-center justify-center md:justify-start gap-4">
-                <Link
-                  to="/trading"
+                <button
+                  type="button"
+                  onClick={openBetaModal}
                   className="inline-flex items-center justify-center gap-2 px-8 py-3 bg-blue-500 hover:bg-blue-400 text-black font-semibold rounded-xl transition-colors shadow-lg shadow-blue-500/20 w-full sm:w-auto"
                 >
                   <Zap className="w-5 h-5" />
                   Trade Now
-                </Link>
+                </button>
                 <a
                   href="#features"
                   className="inline-flex items-center justify-center gap-2 px-8 py-3 border border-white/20 hover:border-blue-400 hover:text-blue-300 rounded-xl font-semibold transition-colors w-full sm:w-auto"
@@ -218,13 +270,14 @@ const LandingPage: React.FC = () => {
               </p>
             </div>
             <div className="space-y-3 w-full md:w-auto">
-              <Link
-                to="/trading"
+              <button
+                type="button"
+                onClick={openBetaModal}
                 className="inline-flex items-center justify-center gap-2 px-8 py-3 bg-blue-500 hover:bg-blue-400 text-black font-semibold rounded-2xl transition-colors shadow-lg shadow-blue-500/20 w-full md:w-auto"
               >
                 Start Locking
                 <Zap className="w-4 h-4" />
-              </Link>
+              </button>
               <p className="text-xs uppercase tracking-[0.3em] text-gray-500">
                 2 minute setup • cancel anytime
               </p>
@@ -407,16 +460,106 @@ const LandingPage: React.FC = () => {
             >
               Contact
             </a>
-            <Link
-              to="/trading"
+            <button
+              type="button"
+              onClick={openBetaModal}
               className="text-blue-300 hover:text-blue-100 transition-colors font-semibold"
             >
               Launch Terminal
-            </Link>
+            </button>
           </div>
         </div>
       </footer>
     </div>
+
+      {isBetaModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <div
+            className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+            onClick={closeBetaModal}
+          />
+          <div className="relative z-10 w-full max-w-md rounded-3xl border border-blue-500/40 bg-gradient-to-b from-slate-950 via-black to-slate-950 p-8 shadow-2xl shadow-blue-500/20">
+            <button
+              type="button"
+              aria-label="Close beta gate"
+              onClick={closeBetaModal}
+              className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors"
+              disabled={isVerifyingBeta}
+            >
+              ✕
+            </button>
+            <div className="text-center space-y-4">
+              <p className="text-[0.7rem] uppercase tracking-[0.5em] text-blue-200">
+                Private Beta
+              </p>
+              <h3 className="text-3xl font-semibold">Unlock the Terminal</h3>
+              <p className="text-sm text-gray-400">
+                Pump Pumpkin is invite-only while we finish the public launch.
+                Drop the passphrase you received to continue to the trading
+                terminal.
+              </p>
+            </div>
+
+            <form className="mt-6 space-y-4" onSubmit={handleBetaSubmit}>
+              <label className="block text-xs uppercase tracking-[0.4em] text-gray-500">
+                Access Code
+                <input
+                  type="password"
+                  value={betaPassword}
+                  onChange={(e) => {
+                    setBetaPassword(e.target.value);
+                    setBetaError(null);
+                  }}
+                  placeholder="••••••••"
+                  className="mt-2 w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-base focus:border-blue-400 focus:ring-2 focus:ring-blue-500/40 outline-none transition-colors"
+                />
+              </label>
+              {betaError && (
+                <p className="text-sm text-red-400 text-center">{betaError}</p>
+              )}
+              <button
+                type="submit"
+                disabled={isVerifyingBeta}
+                className="w-full inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-500 to-cyan-400 py-3 font-semibold text-black shadow-lg shadow-blue-500/30 hover:from-blue-400 hover:to-cyan-300 transition-colors disabled:opacity-60"
+              >
+                {isVerifyingBeta ? (
+                  <>
+                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-black/30 border-t-black" />
+                    Checking…
+                  </>
+                ) : (
+                  <>
+                    <Shield className="w-4 h-4" />
+                    Enter Trading Terminal
+                  </>
+                )}
+              </button>
+            </form>
+
+            <div className="mt-6 grid grid-cols-3 gap-3 text-center text-xs text-gray-400">
+              <div className="rounded-2xl border border-white/10 py-3">
+                <p className="text-[0.6rem] uppercase tracking-[0.4em] text-blue-200">
+                  Status
+                </p>
+                <p className="mt-1 text-sm text-white">Beta</p>
+              </div>
+              <div className="rounded-2xl border border-white/10 py-3">
+                <p className="text-[0.6rem] uppercase tracking-[0.4em] text-blue-200">
+                  Slots
+                </p>
+                <p className="mt-1 text-sm text-white">37 / 50</p>
+              </div>
+              <div className="rounded-2xl border border-white/10 py-3">
+                <p className="text-[0.6rem] uppercase tracking-[0.4em] text-blue-200">
+                  Sync
+                </p>
+                <p className="mt-1 text-sm text-white">Live</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 };
 
