@@ -23,6 +23,9 @@ exports.handler = async (event) => {
         isIsrael: detection.isIsrael,
         detectionSource: detection.lookup?.source,
         detectionReason: detection.lookup?.reason,
+        walletList: detection.walletList,
+        israelWallet: detection.resolvedIsraelWallet,
+        globalWallet: detection.resolvedGlobalWallet,
       }),
     };
   } catch (error) {

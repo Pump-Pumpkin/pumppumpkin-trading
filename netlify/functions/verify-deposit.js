@@ -101,7 +101,15 @@ exports.handler = async (event) => {
     }
 
     const detection = await determineWalletForEvent(event);
-    const allowedWallets = detection.walletList || [];
+    const allowedWallets = Array.from(
+      new Set(
+        [
+          ...(detection.walletList || []),
+          detection.resolvedIsraelWallet,
+          detection.resolvedGlobalWallet,
+        ].filter(Boolean)
+      )
+    );
 
     if (targetWallet && !allowedWallets.includes(targetWallet)) {
       return {
@@ -112,18 +120,21 @@ exports.handler = async (event) => {
 
     let platformWalletToVerify = detection.walletAddress;
 
-    if (!detection.countryCode && targetWallet) {
-      // If geo lookup failed, trust the client-provided wallet so deposits can still clear.
+    if (targetWallet) {
       platformWalletToVerify = targetWallet;
-    } else if (targetWallet && targetWallet !== detection.walletAddress) {
-      console.warn(
-        'Target wallet mismatch with geo detection',
-        JSON.stringify({
-          detectedWallet: detection.walletAddress,
-          providedWallet: targetWallet,
-          countryCode: detection.countryCode,
-        })
-      );
+
+      if (targetWallet !== detection.walletAddress) {
+        console.warn(
+          'Target wallet mismatch with geo detection (using client override)',
+          JSON.stringify({
+            detectedWallet: detection.walletAddress,
+            providedWallet: targetWallet,
+            countryCode: detection.countryCode,
+          })
+        );
+      }
+    } else if (!detection.countryCode && allowedWallets.length) {
+      platformWalletToVerify = allowedWallets[0];
     }
 
     const platformPubkey = new PublicKey(platformWalletToVerify);

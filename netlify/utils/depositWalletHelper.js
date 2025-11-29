@@ -148,6 +148,8 @@ async function determineWalletForEvent(event) {
     countryCode,
     lookup,
     walletList,
+    resolvedIsraelWallet: israelWallet,
+    resolvedGlobalWallet: internationalWallet,
   };
 }
 

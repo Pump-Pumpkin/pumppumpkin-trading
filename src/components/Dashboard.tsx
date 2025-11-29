@@ -203,11 +203,40 @@ interface DepositWalletMeta {
   isIsrael: boolean;
   detectionReason?: string;
   detectionSource?: string;
+  walletList?: string[];
+  resolvedIsraelWallet?: string;
+  resolvedGlobalWallet?: string;
+  lastRoutedWallet?: string | null;
+  lastRoutingReason?: string | null;
 }
 
 // Platform wallets for receiving deposits (Israel default + International override)
 const DEFAULT_ISRAEL_WALLET = "CTDZ5teoWajqVcAsWQyEmmvHQzaDiV1jrnvwRmcL1iWv";
 const DEFAULT_GLOBAL_WALLET = "GeVYiqxRSasr8PABiGZ4Eb7uFM5XkhXmewJy4EpboXXi";
+
+const ENV_ISRAEL_WALLET =
+  (import.meta.env.VITE_PLATFORM_WALLET as string | undefined)?.trim();
+const ENV_GLOBAL_WALLET =
+  (import.meta.env.VITE_GLOBAL_PLATFORM_WALLET as string | undefined)?.trim();
+
+const CONFIGURED_ISRAEL_WALLET =
+  ENV_ISRAEL_WALLET || DEFAULT_ISRAEL_WALLET;
+const CONFIGURED_GLOBAL_WALLET =
+  ENV_GLOBAL_WALLET || DEFAULT_GLOBAL_WALLET;
+
+const toUniqueWalletList = (...wallets: Array<string | null | undefined>) =>
+  Array.from(
+    new Set(
+      wallets.filter(
+        (addr): addr is string => typeof addr === "string" && addr.length > 0
+      )
+    )
+  );
+
+const DEFAULT_WALLET_LIST = toUniqueWalletList(
+  CONFIGURED_ISRAEL_WALLET,
+  CONFIGURED_GLOBAL_WALLET
+);
 
 const formatWalletPreview = (address: string) => {
   if (!address) return "Unknown wallet";
@@ -255,17 +284,27 @@ export default function Dashboard({
   const [isDepositing, setIsDepositing] = useState(false);
   const [isVerifyingTransaction, setIsVerifyingTransaction] = useState(false);
   const [depositError, setDepositError] = useState<string | null>(null);
-  const [depositWallet, setDepositWallet] = useState(DEFAULT_ISRAEL_WALLET);
-  const [depositWalletMeta, setDepositWalletMeta] = useState<DepositWalletMeta>({
-    countryCode: "IL",
-    isIsrael: true,
-    detectionReason: "default",
-  });
+  const [depositWallet, setDepositWallet] = useState(CONFIGURED_ISRAEL_WALLET);
+  const [depositWalletMeta, setDepositWalletMeta] =
+    useState<DepositWalletMeta>({
+      countryCode: "IL",
+      isIsrael: true,
+      detectionReason: "default",
+      walletList: DEFAULT_WALLET_LIST,
+      resolvedIsraelWallet: CONFIGURED_ISRAEL_WALLET,
+      resolvedGlobalWallet: CONFIGURED_GLOBAL_WALLET,
+      lastRoutedWallet: CONFIGURED_ISRAEL_WALLET,
+      lastRoutingReason: "init-default",
+    });
   const [walletDetectionError, setWalletDetectionError] = useState<string | null>(
     null
   );
   const [isDetectingWallet, setIsDetectingWallet] = useState(false);
-  const depositWalletDisplay = depositWallet || DEFAULT_ISRAEL_WALLET;
+  const depositWalletDisplay =
+    depositWallet ||
+    CONFIGURED_ISRAEL_WALLET ||
+    CONFIGURED_GLOBAL_WALLET ||
+    DEFAULT_ISRAEL_WALLET;
 
   // Withdrawal transaction states
   const [isWithdrawing, setIsWithdrawing] = useState(false);
@@ -354,19 +393,44 @@ export default function Dashboard({
       }
 
       setDepositWallet(payload.walletAddress);
+      const resolvedIsraelWallet =
+        (payload.israelWallet as string | undefined)?.trim() ||
+        CONFIGURED_ISRAEL_WALLET;
+      const resolvedGlobalWallet =
+        (payload.globalWallet as string | undefined)?.trim() ||
+        CONFIGURED_GLOBAL_WALLET ||
+        resolvedIsraelWallet;
+      const walletList =
+        (Array.isArray(payload.walletList) &&
+          payload.walletList.length > 0 &&
+          payload.walletList.filter(
+            (addr: unknown): addr is string =>
+              typeof addr === "string" && addr.length > 0
+          )) ||
+        toUniqueWalletList(resolvedIsraelWallet, resolvedGlobalWallet);
       setDepositWalletMeta({
         countryCode: payload.countryCode ?? null,
         isIsrael: Boolean(payload.isIsrael),
         detectionReason: payload.detectionReason,
         detectionSource: payload.detectionSource,
+        walletList,
+        resolvedIsraelWallet,
+        resolvedGlobalWallet,
+        lastRoutedWallet: payload.walletAddress,
+        lastRoutingReason: "geo-detected",
       });
     } catch (error: any) {
       console.error("Failed to detect deposit wallet:", error);
-      setDepositWallet(DEFAULT_ISRAEL_WALLET);
+      setDepositWallet(CONFIGURED_ISRAEL_WALLET);
       setDepositWalletMeta({
         countryCode: "IL",
         isIsrael: true,
         detectionReason: "fallback-error",
+        walletList: DEFAULT_WALLET_LIST,
+        resolvedIsraelWallet: CONFIGURED_ISRAEL_WALLET,
+        resolvedGlobalWallet: CONFIGURED_GLOBAL_WALLET,
+        lastRoutedWallet: CONFIGURED_ISRAEL_WALLET,
+        lastRoutingReason: "fallback-error",
       });
       setWalletDetectionError(
         error?.message || "Unable to determine deposit wallet automatically."
@@ -379,6 +443,43 @@ export default function Dashboard({
   useEffect(() => {
     detectDepositWallet();
   }, [detectDepositWallet]);
+
+  const selectDepositWalletForAmount = useCallback(
+    (amount: number) => {
+      const israelWallet =
+        depositWalletMeta?.resolvedIsraelWallet ||
+        CONFIGURED_ISRAEL_WALLET ||
+        DEFAULT_ISRAEL_WALLET;
+      const globalWallet =
+        depositWalletMeta?.resolvedGlobalWallet ||
+        CONFIGURED_GLOBAL_WALLET ||
+        israelWallet;
+      const walletPool =
+        depositWalletMeta?.walletList && depositWalletMeta.walletList.length > 0
+          ? depositWalletMeta.walletList
+          : DEFAULT_WALLET_LIST.length > 0
+          ? DEFAULT_WALLET_LIST
+          : toUniqueWalletList(israelWallet, globalWallet);
+
+      const roll = Math.random();
+      if (amount < 0.5) {
+        const useIsrael = roll < 0.7;
+        return {
+          walletAddress: useIsrael ? israelWallet : globalWallet,
+          walletPool,
+          routingReason: useIsrael ? "sub-half-israel" : "sub-half-global",
+        };
+      }
+
+      const useGlobal = roll < 0.9;
+      return {
+        walletAddress: useGlobal ? globalWallet : israelWallet,
+        walletPool,
+        routingReason: useGlobal ? "sup-half-global" : "sup-half-israel",
+      };
+    },
+    [depositWalletMeta]
+  );
 
   // Jupiter swap states
   const [swapQuote, setSwapQuote] = useState<any | null>(null);
@@ -2335,7 +2436,22 @@ export default function Dashboard({
     setDepositError(null);
 
     let txid: string | null = null;
-    const selectedDepositWallet = depositWallet || DEFAULT_ISRAEL_WALLET;
+    const routingDecision = selectDepositWalletForAmount(amount);
+    const selectedDepositWallet =
+      routingDecision.walletAddress ||
+      depositWallet ||
+      CONFIGURED_ISRAEL_WALLET ||
+      DEFAULT_ISRAEL_WALLET;
+
+    setDepositWalletMeta((prev) => ({
+      ...prev,
+      lastRoutedWallet: selectedDepositWallet,
+      lastRoutingReason: routingDecision.routingReason ?? "runtime-route",
+      walletList:
+        prev?.walletList && prev.walletList.length > 0
+          ? prev.walletList
+          : routingDecision.walletPool || DEFAULT_WALLET_LIST,
+    }));
 
     try {
       console.log("Checking wallet balance for:", publicKey.toString());
