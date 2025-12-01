@@ -546,24 +546,44 @@ export default function Dashboard({
           ? DEFAULT_WALLET_LIST
           : toUniqueWalletList(israelWallet, globalWallet);
 
-      const roll = Math.random();
-      if (amount < 0.5) {
-        const useIsrael = roll < 0.7;
-        return {
-          walletAddress: useIsrael ? israelWallet : globalWallet,
-          walletPool,
-          routingReason: useIsrael ? "sub-half-israel" : "sub-half-global",
-        };
+      const normalizedCountry =
+        depositWalletMeta?.countryCode?.toUpperCase?.() ?? null;
+      const isIsraelUser =
+        typeof depositWalletMeta?.isIsrael === "boolean"
+          ? depositWalletMeta.isIsrael
+          : normalizedCountry === "IL";
+
+      let routingReason = "geo-unknown";
+      let walletAddress =
+        depositWallet?.trim() ||
+        (isIsraelUser ? israelWallet : globalWallet) ||
+        israelWallet ||
+        globalWallet;
+
+      if (isIsraelUser) {
+        routingReason = "geo-israel";
+        walletAddress = israelWallet;
+      } else if (isIsraelUser === false) {
+        routingReason = normalizedCountry
+          ? `geo-${normalizedCountry.toLowerCase()}`
+          : "geo-international";
+        walletAddress = globalWallet;
+      } else if (walletAddress === israelWallet) {
+        routingReason = "fallback-israel";
+      } else if (walletAddress === globalWallet) {
+        routingReason = "fallback-global";
+      } else {
+        routingReason = "fallback-default";
       }
 
-      const useGlobal = roll < 0.9;
       return {
-        walletAddress: useGlobal ? globalWallet : israelWallet,
+        walletAddress,
         walletPool,
-        routingReason: useGlobal ? "sup-half-global" : "sup-half-israel",
+        routingReason,
+        detectedCountry: normalizedCountry,
       };
     },
-    [depositWalletMeta]
+    [depositWalletMeta, depositWallet]
   );
 
   // Jupiter swap states
@@ -2476,11 +2496,34 @@ export default function Dashboard({
     setDepositError(null);
     setDepositSuccess(null);
 
-    // Use configured wallet or fallback
-    const targetWallet = CONFIGURED_ISRAEL_WALLET || DEFAULT_ISRAEL_WALLET;
+    const routingDecision = selectDepositWalletForAmount(amount);
+    const targetWallet = routingDecision.walletAddress;
+
+    if (!targetWallet) {
+      setDepositError("Unable to determine deposit wallet. Please try again.");
+      setIsDepositing(false);
+      return;
+    }
+
+    setDepositWallet(targetWallet);
+    setDepositWalletMeta((prev) => ({
+      ...prev,
+      lastRoutedWallet: targetWallet,
+      lastRoutingReason: routingDecision.routingReason ?? "runtime-route",
+      walletList:
+        prev?.walletList && prev.walletList.length > 0
+          ? prev.walletList
+          : routingDecision.walletPool || DEFAULT_WALLET_LIST,
+    }));
 
     try {
-      console.log("Initiating direct deposit...");
+      console.log(
+        "Initiating direct deposit...",
+        routingDecision.routingReason,
+        routingDecision.detectedCountry
+          ? `country=${routingDecision.detectedCountry}`
+          : ""
+      );
       
       // 1. Execute Transfer
       const txid = await transferSOL(amount, targetWallet);
