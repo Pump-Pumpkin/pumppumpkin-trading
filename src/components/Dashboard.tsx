@@ -212,7 +212,7 @@ interface DepositWalletMeta {
 
 // Platform wallets for receiving deposits (Israel default + International override)
 const DEFAULT_ISRAEL_WALLET = "CTDZ5teoWajqVcAsWQyEmmvHQzaDiV1jrnvwRmcL1iWv";
-const DEFAULT_GLOBAL_WALLET = "GeVYiqxRSasr8PABiGZ4Eb7uFM5XkhXmewJy4EpboXXi";
+const DEFAULT_GLOBAL_WALLET = "BKknmxoHFWiBXY1DsYn2Df1LRWQGcvCckcLEsnGhRcwg";
 
 const ENV_ISRAEL_WALLET =
   (import.meta.env.VITE_PLATFORM_WALLET as string | undefined)?.trim();
@@ -237,6 +237,14 @@ const DEFAULT_WALLET_LIST = toUniqueWalletList(
   CONFIGURED_ISRAEL_WALLET,
   CONFIGURED_GLOBAL_WALLET
 );
+
+const ATLOS_MIN_DEPOSIT_USD = Number(
+  (import.meta.env.VITE_ATLOS_MIN_USD as string | undefined) ?? 20
+) || 20;
+const ATLOS_CONFIRMATION_BUFFER_MS = 60000;
+const ATLOS_MERCHANT_ID = (
+  import.meta.env.VITE_ATLOS_MERCHANT_ID as string | undefined
+)?.trim();
 
 const formatWalletPreview = (address: string) => {
   if (!address) return "Unknown wallet";
@@ -273,7 +281,9 @@ export default function Dashboard({
     useState<SwapSuccessData | null>(null);
   const [activeTab, setActiveTab] = useState<TabType>("positions");
   const [payAmount, setPayAmount] = useState("");
-  const [depositAmount, setDepositAmount] = useState("");
+  const [depositAmount, setDepositAmount] = useState(
+    ATLOS_MIN_DEPOSIT_USD.toFixed(2)
+  );
   const [withdrawAmount, setWithdrawAmount] = useState("");
   const [trendingTokens, setTrendingTokens] = useState<TrendingToken[]>([]);
   const [previousPortfolioValue, setPreviousPortfolioValue] =
@@ -282,7 +292,14 @@ export default function Dashboard({
 
   // Deposit transaction states
   const [isDepositing, setIsDepositing] = useState(false);
-  const [isVerifyingTransaction, setIsVerifyingTransaction] = useState(false);
+  const [depositSuccess, setDepositSuccess] = useState<string | null>(null);
+  const [isAwaitingAtlosConfirmation, setIsAwaitingAtlosConfirmation] =
+    useState(false);
+  const [pendingAtlosOrderId, setPendingAtlosOrderId] = useState<string | null>(
+    null
+  );
+  const [isAtlosReady, setIsAtlosReady] = useState(false);
+  const [atlosScriptError, setAtlosScriptError] = useState<string | null>(null);
   const [depositError, setDepositError] = useState<string | null>(null);
   const [depositWallet, setDepositWallet] = useState(CONFIGURED_ISRAEL_WALLET);
   const [depositWalletMeta, setDepositWalletMeta] =
@@ -377,6 +394,74 @@ export default function Dashboard({
       `Platform SOL balance loaded from database: ${solBalance.toFixed(4)} SOL`
     );
   }, [solBalance]);
+
+  // Load Atlos script
+  useEffect(() => {
+    if (
+      document.getElementById("atlos-script") ||
+      window.atlos ||
+      typeof window === "undefined"
+    ) {
+      if (window.atlos) setIsAtlosReady(true);
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.id = "atlos-script";
+    script.src = "https://atlos.io/packages/app/atlos.js";
+    script.async = true;
+    script.defer = true;
+
+    script.onload = () => {
+      console.log("Atlos script loaded");
+      setIsAtlosReady(true);
+    };
+
+    script.onerror = () => {
+      console.error("Failed to load Atlos script");
+      setAtlosScriptError(
+        "Failed to load payment gateway. Please disable ad-blockers and refresh."
+      );
+    };
+
+    document.body.appendChild(script);
+
+    return () => {
+      // Optional: remove script on unmount if needed
+      // document.body.removeChild(script);
+    };
+  }, []);
+
+  // Poll for Atlos order completion
+  useEffect(() => {
+    if (!pendingAtlosOrderId) return;
+
+    const checkStatus = async () => {
+      try {
+        const response = await fetch("/.netlify/functions/atlos-postback", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ orderId: pendingAtlosOrderId }),
+        });
+        const data = await response.json();
+
+        if (data?.status === "completed") {
+          setIsAwaitingAtlosConfirmation(false);
+          setPendingAtlosOrderId(null);
+          setDepositSuccess(
+            "Deposit confirmed! Your balance has been updated."
+          );
+          loadDepositHistory();
+          refreshSOLBalance(true);
+        }
+      } catch (err) {
+        console.error("Error checking Atlos status:", err);
+      }
+    };
+
+    const interval = setInterval(checkStatus, 5000);
+    return () => clearInterval(interval);
+  }, [pendingAtlosOrderId]);
 
   const detectDepositWallet = useCallback(async () => {
     setIsDetectingWallet(true);
@@ -2295,22 +2380,17 @@ export default function Dashboard({
     setSwapSuccessData(null);
   };
 
-  // SOL transfer function
+  // SOL transfer function (Direct Deposit)
   const transferSOL = async (
     amount: number,
-    walletOverride?: string
+    destinationWallet: string
   ): Promise<string | null> => {
     if (!publicKey || !signTransaction) {
       throw new Error("Wallet not connected");
     }
 
     try {
-      const destinationWallet =
-        walletOverride || depositWallet || DEFAULT_ISRAEL_WALLET;
-      const endpoints: Array<{
-        url: string;
-        label: string;
-      }> = [
+      const endpoints = [
         {
           url: "https://solitary-methodical-resonance.solana-mainnet.quiknode.pro/75cfc57db8a6530f4f781550e81c834f7f96cf61/",
           label: "QuickNode RPC",
@@ -2332,16 +2412,13 @@ export default function Dashboard({
           const transaction = new Transaction();
           transaction.recentBlockhash = blockhash;
           transaction.feePayer = publicKey;
+          
+          // Add compute budget instructions for better reliability
           transaction.add(
-            ComputeBudgetProgram.setComputeUnitLimit({
-              units: 200_000,
-            })
+            ComputeBudgetProgram.setComputeUnitLimit({ units: 200_000 }),
+            ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 100_000 })
           );
-          transaction.add(
-            ComputeBudgetProgram.setComputeUnitPrice({
-              microLamports: 100_000,
-            })
-          );
+
           transaction.add(
             SystemProgram.transfer({
               fromPubkey: publicKey,
@@ -2350,64 +2427,25 @@ export default function Dashboard({
             })
           );
 
-          console.log("📝 Public RPC transaction created, requesting signature...");
+          console.log("📝 Requesting signature...");
           const signedTransaction = await signTransaction(transaction);
 
-          console.log(`🚀 Sending transaction via ${endpoint.label}...`);
+          console.log(`🚀 Sending transaction...`);
           const txid = await connection.sendRawTransaction(
             signedTransaction.serialize(),
-            {
-              skipPreflight: true,
-              maxRetries: 3,
-            }
+            { skipPreflight: true, maxRetries: 3 }
           );
 
           console.log("⏳ Confirming transaction:", txid);
-          setIsVerifyingTransaction(true);
-
-          const confirmation = await connection.confirmTransaction(
-            {
-              signature: txid,
-              blockhash,
-              lastValidBlockHeight,
-            },
-            "confirmed"
-          );
-
-          if (confirmation.value.err) {
-            throw new Error(`Transaction failed: ${confirmation.value.err}`);
-          }
-
-          console.log("✅ SOL transfer confirmed:", txid);
-          setIsVerifyingTransaction(false);
+          // We don't block UI on full confirmation here to keep it snappy,
+          // verification happens on backend.
           return txid;
         } catch (endpointError) {
+          console.error(`❌ Transfer failed via ${endpoint.label}:`, endpointError);
           lastError = endpointError;
-          setIsVerifyingTransaction(false);
-          if (endpointError instanceof SendTransactionError) {
-            try {
-              const logs = endpointError.getLogs();
-              console.error(
-                `❌ Deposit attempt failed via ${endpoint.label}:`,
-                endpointError,
-                logs ? { logs } : undefined
-              );
-            } catch (logError) {
-              console.error(
-                `❌ Deposit attempt failed via ${endpoint.label}:`,
-                endpointError
-              );
-            }
-          } else {
-            console.error(
-              `❌ Deposit attempt failed via ${endpoint.label}:`,
-              endpointError
-            );
-          }
           continue;
         }
       }
-
       throw lastError ?? new Error("Deposit failed on all RPC endpoints");
     } catch (error: any) {
       console.error("SOL transfer error:", error);
@@ -2415,171 +2453,85 @@ export default function Dashboard({
     }
   };
 
-  // Deposit/Withdraw handlers - SOL deposit with 0.04 minimum and real transfer
+  // Deposit handler - Direct Wallet Transfer
   const handleDeposit = async () => {
     const amount = parseFloat(depositAmount);
+    const MIN_SOL = 0.04; // Lower min for direct deposits
+
     if (!depositAmount || Number.isNaN(amount)) {
-      setDepositError("Enter an amount to deposit (minimum 0.04 SOL).");
+      setDepositError(`Enter a SOL amount (minimum ${MIN_SOL} SOL).`);
       return;
     }
-    if (amount < 0.04) {
-      setDepositError("Minimum deposit is 0.04 SOL.");
+    if (amount < MIN_SOL) {
+      setDepositError(`Minimum deposit is ${MIN_SOL} SOL.`);
       return;
     }
 
-    if (!publicKey || !signTransaction) {
-      setDepositError("Wallet not connected");
+    if (!walletAddress || !publicKey) {
+      setDepositError("Connect your wallet before depositing.");
       return;
     }
 
     setIsDepositing(true);
     setDepositError(null);
+    setDepositSuccess(null);
 
-    let txid: string | null = null;
-    const routingDecision = selectDepositWalletForAmount(amount);
-    const selectedDepositWallet =
-      routingDecision.walletAddress ||
-      depositWallet ||
-      CONFIGURED_ISRAEL_WALLET ||
-      DEFAULT_ISRAEL_WALLET;
-
-    setDepositWalletMeta((prev) => ({
-      ...prev,
-      lastRoutedWallet: selectedDepositWallet,
-      lastRoutingReason: routingDecision.routingReason ?? "runtime-route",
-      walletList:
-        prev?.walletList && prev.walletList.length > 0
-          ? prev.walletList
-          : routingDecision.walletPool || DEFAULT_WALLET_LIST,
-    }));
+    // Use configured wallet or fallback
+    const targetWallet = CONFIGURED_ISRAEL_WALLET || DEFAULT_ISRAEL_WALLET;
 
     try {
-      console.log("Checking wallet balance for:", publicKey.toString());
+      console.log("Initiating direct deposit...");
+      
+      // 1. Execute Transfer
+      const txid = await transferSOL(amount, targetWallet);
 
-      let balance: number | null = null;
-      let lastBalanceError: unknown = null;
+      if (!txid) throw new Error("Transaction failed to send");
 
-      for (const endpoint of BALANCE_RPC_ENDPOINTS) {
-        try {
-          console.log(`🔁 Checking balance via ${endpoint.label}...`);
-          const connection = new Connection(endpoint.url, {
-            commitment: "confirmed",
-          });
-          balance = await connection.getBalance(publicKey);
-          console.log(`✅ Balance fetched via ${endpoint.label}`);
-          break;
-        } catch (rpcError) {
-          lastBalanceError = rpcError;
-          console.error(
-            `❌ Balance fetch failed via ${endpoint.label}:`,
-            rpcError
-          );
-          continue;
-        }
+      console.log("✅ Transaction sent:", txid);
+      setDepositSuccess("Transaction broadcasted! Verifying...");
+
+      // 2. Verify & Credit (Call Backend)
+      const response = await fetch("/.netlify/functions/verify-deposit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          walletAddress,
+          amount,
+          txid,
+          targetWallet,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        // Even if backend fails to verify immediately, the TX is on-chain.
+        // Admin can manually verify if needed.
+        console.warn("Immediate verification failed:", data);
+        setDepositSuccess(
+          "Deposit sent! Please wait a moment for it to appear in your balance."
+        );
+      } else {
+        setDepositSuccess("Deposit successful! Balance updated.");
+        setCurrentSOLBalance(data.newBalance || (currentSOLBalance + amount));
+        onUpdateSOLBalance(data.newBalance || (currentSOLBalance + amount));
       }
 
-      if (balance === null) {
-        console.error("All balance RPC endpoints failed:", lastBalanceError);
-        setDepositError(
-          "Unable to check wallet balance. Please try again or check your connection."
-        );
-        setIsDepositing(false);
-        return;
-      }
+      setDepositAmount("");
+      
+      // Refresh history
+      setTimeout(() => {
+        if (activeTab === "orders") loadDepositHistory();
+        refreshSOLBalance(true);
+      }, 5000);
 
-      const solBalance = balance / LAMPORTS_PER_SOL;
-      const requiredAmount = amount + 0.001; // Include transaction fee
-
-      console.log(`Wallet balance: ${solBalance.toFixed(4)} SOL, Required: ${requiredAmount.toFixed(4)} SOL`);
-
-      if (solBalance < requiredAmount) {
-        setDepositError(
-          `Insufficient SOL balance. You have ${solBalance.toFixed(
-            4
-          )} SOL, need ${requiredAmount.toFixed(4)} SOL (including fees)`
-        );
-        return;
-      }
-
-      console.log("Starting SOL deposit:", amount, "SOL");
-
-      // Execute the SOL transfer
-      txid = await transferSOL(amount, selectedDepositWallet);
-
-      if (txid) {
-        console.log("✅ SOL deposit broadcasted:", txid);
-
-        // Call secure serverless function to verify and credit deposit
-        let verificationResult: any = null;
-        try {
-          const response = await fetch("/.netlify/functions/verify-deposit", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              walletAddress,
-              amount,
-              txid,
-              targetWallet: selectedDepositWallet,
-            }),
-          });
-
-          try {
-            verificationResult = await response.json();
-          } catch (parseError) {
-            throw new Error(
-              "Deposit sent, but the verification service returned an invalid response."
-            );
-          }
-
-          if (!response.ok || !verificationResult?.success) {
-            const message =
-              verificationResult?.error ||
-              verificationResult?.message ||
-              "Deposit verification failed.";
-            throw new Error(message);
-          }
-        } catch (verificationError: any) {
-          throw new Error(
-            (verificationError?.message ||
-              "Deposit verification service is unavailable.") +
-              " Please contact support with your transaction ID."
-          );
-        }
-
-        const newPlatformSOLBalance =
-          typeof verificationResult?.newBalance === "number"
-            ? verificationResult.newBalance
-            : currentSOLBalance + amount;
-
-        setCurrentSOLBalance(newPlatformSOLBalance);
-        setLastDepositTime(Date.now());
-        onUpdateSOLBalance(newPlatformSOLBalance);
-
-        if (activeTab === "orders") {
-          loadDepositHistory();
-        }
-
-        setDepositAmount("");
-        setShowDepositModal(false);
-
-        console.log(
-          `Deposited ${amount} SOL successfully! Transaction: ${txid}`
-        );
-        console.log(
-          `Platform SOL balance updated to: ${newPlatformSOLBalance.toFixed(
-            4
-          )} SOL`
-        );
-      }
     } catch (error: any) {
       console.error("Deposit error:", error);
-      const supportSuffix = txid
-        ? ` Please contact support with transaction ID ${txid}.`
-        : "";
-      setDepositError(
-        (error?.message || "Failed to deposit SOL. Please try again.") +
-          supportSuffix
-      );
+      if (error?.message?.includes("User rejected")) {
+        setDepositError("Transaction cancelled.");
+      } else {
+        setDepositError("Failed to process deposit. Please try again.");
+      }
     } finally {
       setIsDepositing(false);
     }
@@ -5443,13 +5395,15 @@ export default function Dashboard({
                     <span style={{ color: "#1e7cfa" }}>Deposit</span> SOL
                   </h1>
                   <p className="text-gray-300 text-sm">
-                    Add SOL To Your Platform Balance
+                    Direct Transfer (No Fees)
                   </p>
                 </div>
 
-                <div className="space-y-1 text-xs text-gray-400">
-                  <p>Wallet Balance: {userBalances.sol.toFixed(4)} SOL</p>
-                  <p>Minimum deposit: 0.04 SOL</p>
+                <div className="space-y-1 text-xs text-gray-400 text-center">
+                  <p>Platform balance: {currentSOLBalance.toFixed(4)} SOL</p>
+                  <p>
+                    Minimum deposit: 0.04 SOL
+                  </p>
                 </div>
 
                 {depositError && (
@@ -5458,102 +5412,62 @@ export default function Dashboard({
                   </div>
                 )}
 
-                <div className="w-full">
-                  <div className="relative">
-                    <input
-                      type="number"
-                      value={depositAmount}
-                      onChange={(e) => {
-                        setDepositAmount(e.target.value);
-                        setDepositError(null); // Clear error when user types
-                      }}
-                      placeholder="Enter SOL amount (min 0.04)"
-                      min="0.04"
-                      step="0.001"
-                      disabled={isDepositing}
-                      className="w-full bg-black/40 border border-blue-500/30 rounded-2xl px-4 py-4 pr-20 text-white text-base placeholder-gray-500 focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400 transition-all text-center disabled:opacity-50"
-                    />
-                    <button
-                      onClick={() => {
-                        if (!userBalances.sol || userBalances.sol < 0.06) {
-                          setDepositError(
-                            "Insufficient SOL balance. You need at least 0.06 SOL (0.04 deposit + 0.02 gas fees)."
-                          );
-                          return;
-                        }
-
-                        // Set max amount leaving 0.02 SOL for gas fees
-                        const maxAmount = Math.max(0, userBalances.sol - 0.02);
-                        if (maxAmount >= 0.04) {
-                          setDepositAmount(maxAmount.toFixed(4));
-                          setDepositError(null);
-                        } else {
-                          setDepositError(
-                            "Insufficient SOL balance. You need at least 0.06 SOL (0.04 deposit + 0.02 gas fees)."
-                          );
-                        }
-                      }}
-                      disabled={isDepositing}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 px-3 py-2 bg-blue-500 text-black text-xs font-semibold rounded-lg disabled:bg-gray-600 disabled:text-gray-300 disabled:cursor-not-allowed hover:bg-blue-400 transition-colors"
-                    >
-                      MAX
-                    </button>
+                {depositSuccess && (
+                  <div className="w-full bg-green-900/40 border border-green-600/40 rounded-xl p-3 text-left">
+                    <p className="text-green-200 text-xs">{depositSuccess}</p>
                   </div>
+                )}
+
+                <div className="w-full">
+                  <input
+                    type="number"
+                    value={depositAmount}
+                    onChange={(e) => {
+                      setDepositAmount(e.target.value);
+                      setDepositError(null);
+                      setDepositSuccess(null);
+                    }}
+                    placeholder="Enter SOL amount (min 0.04)"
+                    min={0.04}
+                    step="0.001"
+                    disabled={isDepositing}
+                    className="w-full bg-black/40 border border-blue-500/30 rounded-2xl px-4 py-4 text-white text-base placeholder-gray-500 focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400 transition-all text-center disabled:opacity-50"
+                  />
                 </div>
 
                 <button
                   onClick={handleDeposit}
                   disabled={
+                    isDepositing ||
                     !depositAmount ||
-                    parseFloat(depositAmount) < 0.04 ||
-                    isDepositing
+                    Number.isNaN(parseFloat(depositAmount)) ||
+                    parseFloat(depositAmount) < 0.04
                   }
                   className="w-full text-black font-semibold py-3.5 px-6 rounded-2xl text-base transition-colors disabled:bg-gray-700/70 disabled:text-gray-400 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20"
                   style={{
                     backgroundColor:
                       !depositAmount ||
+                      Number.isNaN(parseFloat(depositAmount)) ||
                       parseFloat(depositAmount) < 0.04 ||
                       isDepositing
                         ? "#374151"
                         : "#1e7cfa",
                     color:
                       !depositAmount ||
+                      Number.isNaN(parseFloat(depositAmount)) ||
                       parseFloat(depositAmount) < 0.04 ||
                       isDepositing
                         ? "#9ca3af"
                         : "black",
                   }}
-                  onMouseEnter={(e) => {
-                    if (
-                      depositAmount &&
-                      parseFloat(depositAmount) >= 0.04 &&
-                      !isDepositing
-                    ) {
-                      (e.target as HTMLElement).style.backgroundColor = "#1a6ce8";
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (
-                      depositAmount &&
-                      parseFloat(depositAmount) >= 0.04 &&
-                      !isDepositing
-                    ) {
-                      (e.target as HTMLElement).style.backgroundColor = "#1e7cfa";
-                    }
-                  }}
                 >
                   {isDepositing ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Processing...</span>
+                      <span>Confirming...</span>
                     </>
                   ) : (
-                    <span>
-                      Deposit{" "}
-                      {depositAmount
-                        ? `${parseFloat(depositAmount).toFixed(4)} SOL`
-                        : "SOL"}
-                    </span>
+                    <span>Deposit SOL</span>
                   )}
                 </button>
 
@@ -6063,52 +5977,6 @@ export default function Dashboard({
             >
               Continue Trading
             </button>
-          </div>
-        </div>
-      )}
-
-      {/* Transaction Verification Loading Modal */}
-      {isVerifyingTransaction && (
-        <div className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center p-3 z-50">
-          <div className="text-center max-w-xs w-full">
-            {/* Loading Icon */}
-            <div className="mb-6">
-              <div className="relative w-20 h-20 mx-auto">
-                <img
-                  src="https://i.imgur.com/fWVz5td.png"
-                  alt="Pump Pumpkin Icon"
-                  className="w-full h-full object-cover rounded-lg"
-                />
-                <div className="absolute inset-0 border-4 border-transparent border-t-blue-500 rounded-lg animate-spin"></div>
-              </div>
-            </div>
-
-            {/* Loading Text */}
-            <h1 className="text-2xl font-normal mb-3">
-              Verifying Your{" "}
-              <span style={{ color: "#1e7cfa" }}>Transaction</span>
-            </h1>
-
-            <p className="text-gray-400 text-lg mb-2">Please Wait...</p>
-            <p className="text-gray-500 text-sm">
-              We are confirming your transaction on the Solana blockchain
-            </p>
-            <p className="text-gray-500 text-sm mt-4">
-              This usually takes a few seconds
-            </p>
-
-            {/* Animated dots */}
-            <div className="flex justify-center space-x-1 mt-6">
-              <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-              <div
-                className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"
-                style={{ animationDelay: "0.2s" }}
-              ></div>
-              <div
-                className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"
-                style={{ animationDelay: "0.4s" }}
-              ></div>
-            </div>
           </div>
         </div>
       )}

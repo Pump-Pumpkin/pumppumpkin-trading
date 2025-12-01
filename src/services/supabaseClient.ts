@@ -64,9 +64,16 @@ export interface CreateWithdrawalRequestData {
 export interface DepositTransaction {
   id: string;
   wallet_address: string;
-  amount: number;
-  platform_wallet: string;
-  status: 'completed' | 'failed';
+  amount: number | null;
+  platform_wallet: string | null;
+  asset_symbol?: string | null;
+  fiat_amount_usd?: number | null;
+  order_id?: string | null;
+  payment_id?: string | null;
+  txid?: string | null;
+  verification_source?: string | null;
+  metadata?: Record<string, any> | null;
+  status: 'pending' | 'completed' | 'failed';
   created_at: string;
   updated_at: string;
 }
@@ -74,6 +81,14 @@ export interface DepositTransaction {
 export interface CreateDepositTransactionData {
   wallet_address: string;
   amount: number;
+  asset_symbol?: string;
+  fiat_amount_usd?: number;
+  order_id?: string;
+  payment_id?: string;
+  txid?: string;
+  verification_source?: string;
+  metadata?: Record<string, any>;
+  status?: 'pending' | 'completed' | 'failed';
 }
 
 // User profile service
@@ -505,18 +520,24 @@ export class UserProfileService {
    * Create a deposit transaction record after successful blockchain transfer
    */
   async createDepositRecord(
-    walletAddress: string,
-    amount: number
+    data: CreateDepositTransactionData
   ): Promise<DepositTransaction | null> {
     try {
-      console.log('💰 Creating deposit record for:', walletAddress, 'amount:', amount);
+      console.log('💰 Creating deposit record for:', data.wallet_address, 'amount:', data.amount);
       
       const { data: depositRecord, error: recordError } = await supabase
         .from('deposit_transactions')
         .insert([{
-          wallet_address: walletAddress,
-          amount: amount,
-          status: 'completed'
+          wallet_address: data.wallet_address,
+          amount: data.amount,
+          status: data.status ?? 'completed',
+          asset_symbol: data.asset_symbol,
+          fiat_amount_usd: data.fiat_amount_usd,
+          order_id: data.order_id,
+          payment_id: data.payment_id,
+          txid: data.txid,
+          verification_source: data.verification_source,
+          metadata: data.metadata
         }])
         .select()
         .single();

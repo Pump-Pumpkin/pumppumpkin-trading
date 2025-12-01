@@ -11,9 +11,18 @@ function loadLocalEnvIfNeeded() {
     return;
   }
 
-  const envPath = path.resolve(__dirname, '..', 'netlify-env-vars.txt');
+  const candidatePaths = [
+    path.resolve(__dirname, '..', 'netlify-env-vars.txt'),
+    path.resolve(__dirname, '..', '..', 'netlify-env-vars.txt'),
+    path.resolve(process.cwd(), 'netlify-env-vars.txt'),
+  ];
+
   try {
-    if (fs.existsSync(envPath)) {
+    for (const envPath of candidatePaths) {
+      if (!fs.existsSync(envPath)) {
+        continue;
+      }
+
       const content = fs.readFileSync(envPath, 'utf-8');
       content.split(/\r?\n/).forEach((line) => {
         const trimmed = line.trim();
@@ -24,6 +33,8 @@ function loadLocalEnvIfNeeded() {
           process.env[key] = value;
         }
       });
+
+      break;
     }
   } catch (error) {
     console.warn('Unable to load local Netlify env vars:', error);

@@ -729,37 +729,65 @@ export default function AdminPage() {
                         <thead className="bg-gray-800 text-gray-400">
                           <tr>
                             <th className="px-6 py-3 font-medium">Wallet</th>
-                            <th className="px-6 py-3 font-medium">Amount</th>
+                            <th className="px-6 py-3 font-medium">Credited SOL</th>
+                            <th className="px-6 py-3 font-medium">Paid (Asset)</th>
                             <th className="px-6 py-3 font-medium">Status</th>
-                            <th className="px-6 py-3 font-medium">Tx Hash</th>
+                            <th className="px-6 py-3 font-medium">Order / Tx</th>
                             <th className="px-6 py-3 font-medium text-right">Date</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-800">
-                          {deposits.map((dep) => (
-                            <tr key={dep.id} className="hover:bg-gray-800/50">
-                              <td className="px-6 py-4 font-mono text-xs text-gray-300">
-                                {dep.wallet_address.slice(0, 8)}...
-                              </td>
-                              <td className="px-6 py-4 font-bold text-green-400">
-                                +{dep.amount.toFixed(4)} SOL
-                              </td>
-                              <td className="px-6 py-4">
-                                <span className="px-2 py-1 rounded-full text-xs font-bold bg-green-900/50 text-green-400 capitalize">
-                                  {dep.status}
-                                </span>
-                              </td>
-                              <td className="px-6 py-4 font-mono text-xs text-gray-500 truncate max-w-[150px]">
-                                {(dep as any).txid || 'N/A'}
-                              </td>
-                              <td className="px-6 py-4 text-right text-gray-400">
-                                {new Date(dep.created_at).toLocaleString()}
-                              </td>
-                            </tr>
-                          ))}
+                          {deposits.map((dep) => {
+                            const creditedSol = Number(dep.amount ?? 0);
+                            const fiatAmount =
+                              Number(dep.fiat_amount_usd ?? NaN) || 0;
+                            const assetSymbol = dep.asset_symbol || "USDC";
+                            const statusClass =
+                              dep.status === "completed"
+                                ? "bg-green-900/50 text-green-400"
+                                : dep.status === "pending"
+                                ? "bg-yellow-900/50 text-yellow-400"
+                                : "bg-red-900/50 text-red-400";
+                            const txPreview = dep.txid
+                              ? `${dep.txid.slice(0, 6)}…${dep.txid.slice(-6)}`
+                              : "N/A";
+                            const orderPreview = dep.order_id
+                              ? `#${dep.order_id.slice(-8)}`
+                              : "—";
+
+                            return (
+                              <tr key={dep.id} className="hover:bg-gray-800/50">
+                                <td className="px-6 py-4 font-mono text-xs text-gray-300">
+                                  {dep.wallet_address.slice(0, 8)}…
+                                </td>
+                                <td className="px-6 py-4 font-bold text-white">
+                                  {creditedSol > 0
+                                    ? `+${creditedSol.toFixed(4)} SOL`
+                                    : "—"}
+                                </td>
+                                <td className="px-6 py-4 text-gray-300">
+                                  ${fiatAmount.toFixed(2)} {assetSymbol}
+                                </td>
+                                <td className="px-6 py-4">
+                                  <span className={`px-2 py-1 rounded-full text-xs font-bold capitalize ${statusClass}`}>
+                                    {dep.status}
+                                  </span>
+                                </td>
+                                <td className="px-6 py-4 text-xs text-gray-400 space-y-1 font-mono">
+                                  <div>{orderPreview}</div>
+                                  <div className="truncate max-w-[180px]">
+                                    {txPreview}
+                                  </div>
+                                </td>
+                                <td className="px-6 py-4 text-right text-gray-400">
+                                  {new Date(dep.created_at).toLocaleString()}
+                                </td>
+                              </tr>
+                            );
+                          })}
                           {deposits.length === 0 && (
                             <tr>
-                              <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
+                              <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
                                 No deposits found
                               </td>
                             </tr>
@@ -768,31 +796,60 @@ export default function AdminPage() {
                       </table>
                     </div>
                     <div className="space-y-4 md:hidden">
-                      {deposits.map((dep) => (
-                        <div
-                          key={dep.id}
-                          className="rounded-xl border border-gray-800 bg-gray-900 p-4 space-y-3"
-                        >
-                          <div className="text-xs uppercase tracking-[0.3em] text-gray-400">
-                            Deposit
+                      {deposits.map((dep) => {
+                        const creditedSol = Number(dep.amount ?? 0);
+                        const fiatAmount =
+                          Number(dep.fiat_amount_usd ?? NaN) || 0;
+                        const assetSymbol = dep.asset_symbol || "USDC";
+                        const statusClass =
+                          dep.status === "completed"
+                            ? "text-green-400"
+                            : dep.status === "pending"
+                            ? "text-yellow-400"
+                            : "text-red-400";
+
+                        return (
+                          <div
+                            key={dep.id}
+                            className="rounded-xl border border-gray-800 bg-gray-900 p-4 space-y-3"
+                          >
+                            <div className="text-xs uppercase tracking-[0.3em] text-gray-400">
+                              Deposit
+                            </div>
+                            <p className="font-mono text-xs text-gray-300 break-all">
+                              {dep.wallet_address}
+                            </p>
+                            <div className="flex items-center justify-between text-sm">
+                              <span className="text-gray-400">Credited</span>
+                              <span className="font-semibold text-white">
+                                {creditedSol > 0
+                                  ? `+${creditedSol.toFixed(4)} SOL`
+                                  : "—"}
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between text-sm">
+                              <span className="text-gray-400">Paid</span>
+                              <span className="font-semibold text-gray-200">
+                                ${fiatAmount.toFixed(2)} {assetSymbol}
+                              </span>
+                            </div>
+                            {dep.order_id && (
+                              <p className="text-[11px] text-gray-500 font-mono">
+                                #{dep.order_id}
+                              </p>
+                            )}
+                            <p className="text-xs text-gray-500 break-all">
+                              {dep.txid || "No transaction ID"}
+                            </p>
+                            <p className={`text-xs font-semibold ${statusClass}`}>
+                              {dep.status}
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              {new Date(dep.created_at).toLocaleString()}
+                            </p>
                           </div>
-                          <p className="font-mono text-xs text-gray-300 break-all">
-                            {dep.wallet_address}
-                          </p>
-                          <div className="flex items-center justify-between text-sm">
-                            <span className="text-gray-400">Amount</span>
-                            <span className="font-semibold text-green-400">
-                              +{dep.amount.toFixed(4)} SOL
-                            </span>
-                          </div>
-                          <p className="text-xs text-gray-500 break-all">
-                            {(dep as any).txid || 'No transaction ID'}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            {new Date(dep.created_at).toLocaleString()}
-                          </p>
-                        </div>
-                      ))}
+                        );
+                      })}
                       {deposits.length === 0 && (
                         <div className="border border-gray-800 rounded-xl p-6 text-center text-gray-500">
                           No deposits found
