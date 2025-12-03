@@ -4,12 +4,16 @@ import App from './App.tsx';
 import UnderConstruction from './components/UnderConstruction.tsx';
 import { MAINTENANCE_MODE } from './config/maintenance.ts';
 import './index.css';
+import { initAnalytics } from './utils/analytics.ts';
 
 declare global {
   interface Window {
     browser?: unknown;
     chrome?: unknown;
     __PUMP_VERBOSE_LOGS__?: boolean;
+    __GA_INITIALIZED__?: boolean;
+    dataLayer?: unknown[];
+    gtag?: (...args: unknown[]) => void;
   }
 }
 
@@ -28,6 +32,8 @@ if (typeof window !== 'undefined') {
       };
     });
   }
+
+  initAnalytics();
 }
 
 createRoot(document.getElementById('root')!).render(

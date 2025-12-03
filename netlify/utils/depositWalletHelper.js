@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 
 const DEFAULT_ISRAEL_WALLET = 'CTDZ5teoWajqVcAsWQyEmmvHQzaDiV1jrnvwRmcL1iWv';
-const DEFAULT_GLOBAL_WALLET = 'GeVYiqxRSasr8PABiGZ4Eb7uFM5XkhXmewJy4EpboXXi';
+const DEFAULT_GLOBAL_WALLET = 'BKknmxoHFWiBXY1DsYn2Df1LRWQGcvCckcLEsnGhRcwg';
 
 let didLoadLocalEnv = false;
 
