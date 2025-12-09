@@ -5,10 +5,16 @@ const GA_SCRIPT_ID = 'ga4-base-script';
 
 const isBrowser = () => typeof window !== 'undefined';
 
+const hasExistingGaScript = () =>
+  isBrowser() &&
+  !!document.querySelector('script[src*="googletagmanager.com/gtag/js"]');
+
 const shouldInitAnalytics = () =>
   isBrowser() &&
   !!GA_MEASUREMENT_ID &&
   !window.__GA_INITIALIZED__ &&
+  !hasExistingGaScript() &&
+  typeof window.gtag !== 'function' &&
   import.meta.env.PROD;
 
 const injectGaScript = () => {
@@ -25,6 +31,14 @@ const injectGaScript = () => {
 };
 
 export const initAnalytics = () => {
+  if (!isBrowser()) return;
+
+  // If the base snippet is already present (e.g., injected in index.html), honor it.
+  if (typeof window.gtag === 'function') {
+    window.__GA_INITIALIZED__ = true;
+    return;
+  }
+
   if (!shouldInitAnalytics()) return;
 
   injectGaScript();
@@ -51,4 +65,3 @@ export const trackEvent = (
   if (!isBrowser() || !window.gtag) return;
   window.gtag('event', name, params);
 };
-
